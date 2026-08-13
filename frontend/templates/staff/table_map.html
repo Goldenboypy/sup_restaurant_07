@@ -1,0 +1,29 @@
+{% extends "staff/base.html" %}
+{% block title %}Table map{% endblock %}
+{% block nav_tables %}active{% endblock %}
+{% block content %}
+<h1>Table map</h1>
+<p class="muted" style="margin-bottom:1.5rem;">Every table, its current status and assigned waiter.</p>
+
+{% if tables %}
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:1rem;">
+  {% for table in tables %}
+  <a href="{% url 'staff-table-detail' table.id %}" class="card" style="text-decoration:none; color:inherit; display:block;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:.6rem;">
+      <h3 style="margin:0;">Table {{ table.number }}</h3>
+      <span class="status-badge status-{{ table.status }}">{{ table.get_status_display|default:table.status }}</span>
+    </div>
+    <p class="muted" style="margin:0;">
+      {% if table.assigned_waiter %}
+        Waiter: {{ table.assigned_waiter.name }}
+      {% else %}
+        Unassigned
+      {% endif %}
+    </p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">No tables configured yet.</div>
+{% endif %}
+{% endblock %}

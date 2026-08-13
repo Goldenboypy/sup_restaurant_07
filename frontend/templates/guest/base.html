@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<!--
+  frontend/templates/base.html
+  ----------------------------
+  Master layout template. Every other page extends this file.
+
+  Connection map:
+    <- config/settings.py      : TEMPLATES DIRS includes frontend/templates/
+    <- supermarket/views.py    : every view renders a child template that extends this
+    -> frontend/static/css/    : main.css, components.css, responsive.css
+    -> frontend/static/js/     : auth.js  (navbar sync on every page)
+                                 cart.js  (cart badge on every page)
+    -> /api/auth/me            : auth.js reads token and updates navbar
+    -> /api/cart/              : cart.js updates the cart item count badge
+    -> ws/notifications/       : NotificationConsumer (consumers.py) — toast push
+
+  Blocks available to child templates:
+    block title: page <title> suffix
+    block head_extra: extra <link> / <meta> in <head>
+    block body_class: extra class on <body>
+    block content: main page content  ← required
+    block scripts: extra <script> tags before </body>
+
+  Navbar active state:
+    Views pass  context["page"] = "home" | "menu" | "cart" | "orders" | "auth"
+    Base template marks the matching nav link as active.
+
+  Cart badge:
+    #cart-badge  is populated by cart.js on DOMContentLoaded via GET /api/cart/
+    Hidden when item_count == 0.
+
+  Notification WebSocket:
+    Opened by base.html inline script when token is present.
+    Connects to ws/notifications/?token=<t>  (NotificationConsumer)
+    Displays push messages as toast notifications.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="Fresh groceries delivered fast. Halal certified. Loyalty cashback on every order."/>
+
+  <title>Test Restaurant — Fresh Every Day</title>
+
+  <!-- Favicon (emoji fallback) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>"/>
+
+  <!-- ── Global CSS ────────────────────────────────────────────────────────
+       In production serve via Django staticfiles:
+       {% load static %}
+       <link rel="stylesheet" href="{% static 'css/main.css' %}"/>
+  ──────────────────────────────────────────────────────────────────────── -->
+  <style>
+    /* ════════════════════════════════════════════════════════════════════
+       DESIGN TOKENS  (single source of truth for the whole system)
+       Mirrors the CSS variables defined in frontend/static/css/main.css
+    ════════════════════════════════════════════════════════════════════ */
+    :root {
+      /* Brand */
+      --green:          #16a34a;
+      --green-dark:     #14532d;
+      --green-light:    #dcfce7;
+      --green-mid:      #86efac;
+      --green-50:       #f0fdf4;
+
+      /* Semantic */
+      --red:            #dc2626;
+      --red-light:      #fee2e2;
+      --yellow:         #d97706;
+      --yellow-light:   #fef3c7;
+      --blue:           #2563eb;
+      --blue-light:     #dbeafe;
+
+      /* Neutrals */
+      --gray-50:        #f9fafb;
+      --gray-100:       #f3f4f6;
+      --gray-200:       #e5e7eb;
+      --gray-300:       #d1d5db;
+      --gray-400:       #9ca3af;
+      --gray-500:       #6b7280;
+      --gray-700:       #374151;
+      --gray-900:       #111827;
+      --white:          #ffffff;
+
+      /* Surfaces */
+      --surface:        var(--white);
+      --surface-raised: var(--white);
+      --bg:             var(--gray-50);
+
+      /* Borders */
+      --border:         var(--gray-200);
+      --border-focus:   var(--green);
+
+      /* Shadows */
+      --shadow-sm:      0 1px 4px rgba(0,0,0,.06);
+      --shadow:         0 2px 12px rgba(0,0,0,.08);
+      --shadow-lg:      0 8px 32px rgba(0,0,0,.12);
+
+      /* Shape */
+      --radius-sm:      6px;
+      --radius:         10px;
+      --radius-lg:      16px;
+
+      /* Motion */
+      --transition:     .18s ease;
+
+      /* Layout */
+      --nav-h:          60px;
+      --max-w:          1200px;
+      --side-p:         1.25rem;
+    }
+
+    /* ── Reset ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--gray-900);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    img { display: block; max-width: 100%; }
+    a   { color: inherit; text-decoration: none; }
+    button { font-family: inherit; }
+
+    .hidden { display: none !important; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0,0,0,0); border: 0;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       NAVBAR
+    ════════════════════════════════════════════════════════════════════ */
+    .navbar {
+      background: var(--green-dark);
+      height: var(--nav-h);
+      display: flex;
+      align-items: center;
+      padding: 0 var(--side-p);
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 300;
+      box-shadow: 0 2px 10px rgba(0,0,0,.3);
+    }
+
+    /* Logo */
+    .navbar__logo {
+      font-size: 1.35rem;
+      font-weight: 900;
+      color: var(--white);
+      letter-spacing: -.5px;
+      flex-shrink: 0;
+      transition: opacity var(--transition);
+    }
+    .navbar__logo:hover { opacity: .85; }
+    .navbar__logo span  { color: var(--green-mid); }
+
+    /* Desktop nav links */
+    .navbar__nav {
+      display: flex;
+      align-items: center;
+      gap: .25rem;
+      margin-left: 1.5rem;
+    }
+
+    .nav-link {
+      color: #d1fae5;
+      font-size: .9rem;
+      font-weight: 500;
+      padding: .45rem .8rem;
+      border-radius: var(--radius-sm);
+      transition: background var(--transition), color var(--transition);
+      white-space: nowrap;
+    }
+    .nav-link:hover       { background: rgba(255,255,255,.1); color: var(--white); }
+    .nav-link--active     { background: rgba(255,255,255,.15); color: var(--white); font-weight: 700; }
+
+    /* Right side */
+    .navbar__right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    /* Search bar */
+    .navbar__search {
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 50px;
+      padding: .35rem .9rem;
+      gap: .5rem;
+      transition: background var(--transition), border-color var(--transition);
+    }
+    .navbar__search:focus-within {
+      background: rgba(255,255,255,.2);
+      border-color: var(--green-mid);
+    }
+    .navbar__search input {
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--white);
+      font-size: .875rem;
+      width: 160px;
+    }
+    .navbar__search input::placeholder { color: rgba(255,255,255,.55); }
+    .navbar__search-icon { color: rgba(255,255,255,.6); font-size: .9rem; }
+
+    /* Cart icon */
+    .navbar__cart {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      transition: background var(--transition);
+      color: var(--white);
+      font-size: 1.2rem;
+    }
+    .navbar__cart:hover { background: rgba(255,255,255,.15); }
+
+    #cart-badge {
+      position: absolute;
+      top: 2px; right: 2px;
+      background: var(--red);
+      color: var(--white);
+      font-size: .62rem;
+      font-weight: 800;
+      min-width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 3px;
+      border: 2px solid var(--green-dark);
+    }
+
+    /* User pill */
+    .navbar__user {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 50px;
+      padding: .3rem .75rem .3rem .4rem;
+      cursor: default;
+    }
+
+    .navbar__avatar {
+      width: 28px; height: 28px;
+      background: var(--green);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .8rem; font-weight: 800; color: var(--white);
+    }
+
+    #navbar-greeting {
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--white);
+    }
+
+    .navbar__logout-btn {
+      background: none;
+      border: none;
+      color: #d1fae5;
+      font-size: .8rem;
+      cursor: pointer;
+      padding: .2rem .4rem;
+      border-radius: 4px;
+      transition: color var(--transition), background var(--transition);
+    }
+    .navbar__logout-btn:hover { color: var(--white); background: rgba(255,255,255,.1); }
+
+    .navbar__login-btn {
+      background: var(--green);
+      color: var(--white);
+      font-weight: 700;
+      font-size: .875rem;
+      padding: .45rem 1rem;
+      border-radius: 50px;
+      transition: background var(--transition), transform var(--transition);
+    }
+    .navbar__login-btn:hover { background: #15803d; transform: translateY(-1px); }
+
+    /* Mobile hamburger */
+    .navbar__hamburger {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      padding: .4rem;
+      margin-left: .5rem;
+    }
+    .navbar__hamburger span {
+      display: block; width: 22px; height: 2px;
+      background: var(--white); border-radius: 2px;
+      transition: transform var(--transition), opacity var(--transition);
+    }
+
+    /* Mobile drawer */
+    .navbar__drawer {
+      display: none;
+      position: fixed;
+      top: var(--nav-h);
+      left: 0; right: 0;
+      background: var(--green-dark);
+      border-top: 1px solid rgba(255,255,255,.1);
+      padding: .75rem var(--side-p) 1rem;
+      z-index: 299;
+      flex-direction: column;
+      gap: .25rem;
+    }
+    .navbar__drawer.open { display: flex; }
+    .navbar__drawer .nav-link { color: #d1fae5; display: block; padding: .6rem .8rem; }
+
+    /* ════════════════════════════════════════════════════════════════════
+       NOTIFICATION TOAST  (pushed by NotificationConsumer via WebSocket)
+    ════════════════════════════════════════════════════════════════════ */
+    #toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: .6rem;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--gray-900);
+      color: var(--white);
+      padding: .75rem 1.1rem;
+      border-radius: var(--radius);
+      font-size: .875rem;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      max-width: 320px;
+      pointer-events: all;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .3s, transform .3s;
+      display: flex;
+      align-items: flex-start;
+      gap: .6rem;
+    }
+    .toast--visible  { opacity: 1; transform: translateY(0); }
+    .toast--success  { background: var(--green); }
+    .toast--error    { background: var(--red); }
+    .toast--warning  { background: var(--yellow); }
+    .toast--info     { background: var(--blue); }
+
+    .toast__icon  { font-size: 1rem; flex-shrink: 0; margin-top: .05rem; }
+    .toast__close {
+      margin-left: auto; background: none; border: none;
+      color: rgba(255,255,255,.7); font-size: 1rem; cursor: pointer;
+      padding: 0 .1rem; flex-shrink: 0;
+    }
+    .toast__close:hover { color: var(--white); }
+
+    /* ════════════════════════════════════════════════════════════════════
+       ANNOUNCEMENT BANNER  (optional — shown when announcement is set)
+    ════════════════════════════════════════════════════════════════════ */
+    .announcement {
+      background: var(--green);
+      color: var(--white);
+      text-align: center;
+      font-size: .825rem;
+      font-weight: 600;
+      padding: .45rem var(--side-p);
+      letter-spacing: .2px;
+    }
+    .announcement a { color: var(--white); text-decoration: underline; }
+
+    /* ════════════════════════════════════════════════════════════════════
+       MAIN CONTENT WRAPPER
+    ════════════════════════════════════════════════════════════════════ */
+    .page-content {
+      flex: 1;
+      width: 100%;
+    }
+
+    /* Utility container */
+    .container {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 0 var(--side-p);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       FOOTER
+    ════════════════════════════════════════════════════════════════════ */
+    .footer {
+      background: var(--green-dark);
+      color: #d1fae5;
+      margin-top: auto;
+    }
+
+    .footer__grid {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 2.5rem var(--side-p) 1.5rem;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .footer__grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .footer__grid { grid-template-columns: 1fr; }
+    }
+
+    .footer__brand-name {
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: var(--white);
+      margin-bottom: .5rem;
+    }
+    .footer__brand-name span { color: var(--green-mid); }
+    .footer__tagline { font-size: .875rem; color: #a7f3d0; line-height: 1.55; margin-bottom: 1rem; }
+
+    .footer__col-title {
+      font-size: .78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--green-mid);
+      margin-bottom: .75rem;
+    }
+
+    .footer__links { list-style: none; display: flex; flex-direction: column; gap: .4rem; }
+    .footer__links a {
+      font-size: .875rem;
+      color: #d1fae5;
+      transition: color var(--transition);
+    }
+    .footer__links a:hover { color: var(--white); }
+
+    .footer__bottom {
+      border-top: 1px solid rgba(255,255,255,.1);
+      padding: 1rem var(--side-p);
+      max-width: var(--max-w);
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+
+    .footer__copy  { font-size: .78rem; color: #6ee7b7; }
+    .footer__legal { display: flex; gap: 1.25rem; }
+    .footer__legal a { font-size: .78rem; color: #6ee7b7; transition: color var(--transition); }
+    .footer__legal a:hover { color: var(--white); }
+
+    /* ════════════════════════════════════════════════════════════════════
+       RESPONSIVE — navbar
+    ════════════════════════════════════════════════════════════════════ */
+    @media (max-width: 700px) {
+      .navbar__nav    { display: none; }
+      .navbar__search { display: none; }
+      .navbar__hamburger { display: flex; }
+    }
+
+    {% block head_styles %}{% endblock %}
+  </style>
+
+  {% block head_extra %}{% endblock %}
+  <script>
+    (function () {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var qr = params.get('qr');
+        if (!qr) return;
+        fetch('/api/guest/session/' + encodeURIComponent(qr))
+          .then(function (res) { if (!res.ok) throw new Error('session fetch'); return res.json(); })
+          .then(function (session) {
+            try {
+              var record = { qrToken: qr, token: session.session_token, tableId: session.table_id, tableLabel: session.table_label || null };
+              sessionStorage.setItem('guest.session', JSON.stringify(record));
+              localStorage.setItem('guest_session_token', session.session_token);
+              localStorage.setItem('guest_session', JSON.stringify(session));
+            } catch (e) {}
+            params.delete('qr');
+            var newQs = params.toString();
+            var newUrl = window.location.pathname + (newQs ? '?' + newQs : '') + window.location.hash;
+            history.replaceState(null, '', newUrl);
+          })
+          .catch(function () {});
+      } catch (e) {}
+    })();
+  </script>
+</head>
+
+<body class="{% block body_class %}{% endblock %}">
+
+  <!-- ── Announcement banner (optional) ──────────────────────────────────── -->
+  {% if announcement %}
+  <div class="announcement">{{ announcement }}</div>
+  {% endif %}
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       NAVBAR
+       Active state driven by context["page"] set in views.py
+  ════════════════════════════════════════════════════════════════════════════ -->
+  <header>
+    <nav class="navbar" role="navigation" aria-label="Main navigation">
+
+      <!-- Logo -->
+      <a class="navbar__logo" href="/">Rest<span>aurant</span></a>
+
+      <!-- Desktop links -->
+      <div class="navbar__nav">
+        <a class="nav-link {% if page == 'home'   %}nav-link--active{% endif %}" href="/">Home</a>
+        <a class="nav-link {% if page == 'menu'   %}nav-link--active{% endif %}" href="/menu/">Menu</a>
+        <a class="nav-link {% if page == 'orders' %}nav-link--active{% endif %}" href="/orders/">My Orders</a>
+      </div>
+
+      <!-- Right side -->
+      <div class="navbar__right">
+
+        <!-- Search -->
+        <div class="navbar__search" role="search">
+          <span class="navbar__search-icon">🔍</span>
+          <input type="search"
+                 id="navbar-search"
+                 placeholder="Search products…"
+                 autocomplete="off"
+                 aria-label="Search products"/>
+        </div>
+
+        <!-- Cart icon with badge -->
+        <a class="navbar__cart {% if page == 'cart' %}nav-link--active{% endif %}"
+           href="/cart/" title="Cart" aria-label="Menu cart">
+          🛒
+          <span id="cart-badge" class="hidden" aria-live="polite"></span>
+        </a>
+
+        <!-- Logged-in user pill (shown by auth.js) -->
+        <div id="navbar-user" class="navbar__user hidden" aria-label="User menu">
+          <div class="navbar__avatar" id="navbar-avatar">?</div>
+          <span id="navbar-greeting"></span>
+          <button class="navbar__logout-btn" id="navbar-logout" title="Logout">↩ Logout</button>
+        </div>
+
+        <!-- Login button (shown by auth.js when logged out) -->
+        <a id="navbar-login" class="navbar__login-btn" href="/login/">Login</a>
+
+        <!-- Mobile hamburger -->
+        <div class="navbar__hamburger" id="hamburger" aria-label="Open menu" role="button" tabindex="0">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+    </nav>
+
+    <!-- Mobile drawer -->
+    <div class="navbar__drawer" id="mobile-drawer" aria-hidden="true">
+      <a class="nav-link {% if page == 'home'   %}nav-link--active{% endif %}" href="/">🏠 Home</a>
+      <a class="nav-link {% if page == 'menu'   %}nav-link--active{% endif %}" href="/menu/">🍽️ Menu</a>
+      <a class="nav-link {% if page == 'cart'   %}nav-link--active{% endif %}" href="/cart/">🛒 Cart</a>
+      <a class="nav-link {% if page == 'orders' %}nav-link--active{% endif %}" href="/orders/">📋 My Orders</a>
+      <a class="nav-link" href="/login/">🔑 Login / Register</a>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       MAIN CONTENT  —  child templates fill this block
+  ════════════════════════════════════════════════════════════════════════════ -->
+  <main class="page-content" id="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       FOOTER
+  ════════════════════════════════════════════════════════════════════════════ -->
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer__grid">
+
+      <!-- Brand column -->
+      <div>
+        <div class="footer__brand-name">Super<span>market</span></div>
+        <p class="footer__tagline">
+          Fresh groceries, halal meat, and everyday essentials —
+          delivered to your door in under 15 minutes.
+        </p>
+        <p style="font-size:.8rem;color:#6ee7b7;">
+          📍 {{ branch_count|default:"6" }} locations across Uzbekistan
+        </p>
+      </div>
+
+      <!-- Menu column -->
+      <div>
+        <div class="footer__col-title">Menu</div>
+        <ul class="footer__links">
+          <li><a href="/menu/">All Products</a></li>
+          <li><a href="/menu/#discounted">On Sale</a></li>
+          <li><a href="/menu/#halal">Halal Range</a></li>
+          <li><a href="/menu/#new">New Arrivals</a></li>
+        </ul>
+      </div>
+
+      <!-- Account column -->
+      <div>
+        <div class="footer__col-title">Account</div>
+        <ul class="footer__links">
+          <li><a href="/login/">Login</a></li>
+          <li><a href="/login/#register">Register</a></li>
+          <li><a href="/orders/">My Orders</a></li>
+          <li><a href="/cart/">My Cart</a></li>
+        </ul>
+      </div>
+
+      <!-- Info column -->
+      <div>
+        <div class="footer__col-title">Info</div>
+        <ul class="footer__links">
+          <li><a href="/api/docs">API Docs</a></li>
+          <li><a href="/admin/">Admin Panel</a></li>
+          <li><a href="/privacy/">Privacy Policy</a></li>
+          <li><a href="/terms/">Terms of Service</a></li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div class="footer__bottom">
+      <span class="footer__copy">&copy; 2026 Restaurant. All rights reserved.</span>
+      <nav class="footer__legal" aria-label="Legal links">
+        <a href="/privacy/">Privacy</a>
+        <a href="/terms/">Terms</a>
+        <a href="/api/docs">API</a>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       TOAST CONTAINER  — populated by showToast() and WebSocket notifications
+  ════════════════════════════════════════════════════════════════════════════ -->
+  <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       BASE SCRIPTS — run on every page
+  ════════════════════════════════════════════════════════════════════════════ -->
+  <script>
+  "use strict";
+
+  // ── Global toast helper (used by auth.js, cart.js, and inline scripts) ──
+  window.showToast = function(message, type = "success", duration = 3500) {
+    const icons = { success: "✅", error: "❌", warning: "⚠️", info: "ℹ️" };
+    const container = document.getElementById("toast-container");
+    const el = document.createElement("div");
+    el.className = `toast toast--${type}`;
+    el.innerHTML = `
+      <span class="toast__icon">${icons[type] || "ℹ️"}</span>
+      <span>${message}</span>
+      <button class="toast__close" aria-label="Dismiss">✕</button>
+    `;
+    el.querySelector(".toast__close").onclick = () => dismissToast(el);
+    container.appendChild(el);
+    // Trigger animation
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("toast--visible")));
+    setTimeout(() => dismissToast(el), duration);
+  };
+
+  function dismissToast(el) {
+    el.classList.remove("toast--visible");
+    el.addEventListener("transitionend", () => el.remove(), { once: true });
+  }
+
+  // ── Navbar: hamburger toggle ────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", () => {
+    const hamburger = document.getElementById("hamburger");
+    const drawer    = document.getElementById("mobile-drawer");
+    if (hamburger && drawer) {
+      hamburger.addEventListener("click", () => {
+        const open = drawer.classList.toggle("open");
+        drawer.setAttribute("aria-hidden", String(!open));
+      });
+    }
+
+    // ── Navbar: search — redirect to /menu/?q=... on Enter ──────────────
+    const searchInput = document.getElementById("navbar-search");
+    if (searchInput) {
+      searchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && searchInput.value.trim()) {
+          window.location.href = `/menu/?q=${encodeURIComponent(searchInput.value.trim())}`;
+        }
+      });
+    }
+
+    // ── Navbar: auth state sync ──────────────────────────────────────────
+    // auth.js calls Auth.updateNavbar() on load, but we also update the
+    // avatar initial here since base.html doesn't know the user yet.
+    const raw = localStorage.getItem("user");
+    if (raw) {
+      try {
+        const user   = JSON.parse(raw);
+        const userEl = document.getElementById("navbar-user");
+        const loginEl= document.getElementById("navbar-login");
+        const greet  = document.getElementById("navbar-greeting");
+        const avatar = document.getElementById("navbar-avatar");
+        if (userEl)  userEl.classList.remove("hidden");
+        if (loginEl) loginEl.classList.add("hidden");
+        if (greet)   greet.textContent  = `Hi, ${user.first_name || user.username}`;
+        if (avatar)  avatar.textContent = (user.first_name || user.username || "?")[0].toUpperCase();
+      } catch {}
+    }
+
+    // ── Navbar: logout button ────────────────────────────────────────────
+    document.getElementById("navbar-logout")?.addEventListener("click", async () => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        try {
+          await fetch("/api/auth/logout", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } catch {}
+      }
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/";
+    });
+
+    // ── Cart badge: load from API on every page ──────────────────────────
+    const cartToken = localStorage.getItem("token");
+    if (cartToken) {
+      fetch("/api/cart", { headers: { Authorization: `Bearer ${cartToken}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(cart => {
+          if (!cart) return;
+          const badge = document.getElementById("cart-badge");
+          if (badge) {
+            badge.textContent = cart.item_count || "";
+            badge.classList.toggle("hidden", !cart.item_count);
+          }
+        })
+        .catch(() => {});
+    }
+
+    // ── Notification WebSocket ───────────────────────────────────────────
+    // Connects to consumers.py :: NotificationConsumer
+    // ws://host/ws/notifications/?token=<token>
+    const notifToken = localStorage.getItem("token");
+    if (notifToken) {
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      const ws    = new WebSocket(`${proto}://${location.host}/ws/notifications/?token=${notifToken}`);
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === "notification" && data.message) {
+            showToast(data.message, data.level || "info");
+          }
+        } catch {}
+      };
+
+      // Reconnect once on close (simple back-off)
+      ws.onclose = () => {
+        setTimeout(() => {
+          const t2 = localStorage.getItem("token");
+          if (t2) new WebSocket(`${proto}://${location.host}/ws/notifications/?token=${t2}`);
+        }, 5000);
+      };
+    }
+  });
+  </script>
+
+  <!--
+    auth.js — loaded on every page (manages navbar state, logout).
+    In production:
+        {% load static %}
+        <script src="{% static 'js/auth.js' %}"></script>
+  -->
+  {% load static %}
+<script src="{% static 'guest/js/auth.js' %}"></script>
+
+  <!-- Page-specific scripts injected by child templates -->
+  {% block scripts %}{% endblock %}
+
+</body>
+</html>

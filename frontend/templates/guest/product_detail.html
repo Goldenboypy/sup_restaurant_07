@@ -1,0 +1,450 @@
+{% extends "guest/base.html" %}
+{% load static %}
+
+{#
+  templates/product_detail.html
+  ------------------------------
+  Single product view. The Django view only needs to pass `product_id`
+  into the template context (from the URL) — all product data itself is
+  fetched client-side so price/stock are always current.
+
+  Connection map:
+      → GET  /api/products/{id}/    : full product detail (price, stock,
+                                       description, per-branch availability)
+      → POST /api/cart/items/       : ordering action
+      ← templates/products.html     : linked from each product card
+      ← config/urls.py              : expects a route like
+                                       path("product/<int:product_id>/",
+                                            product_detail_view, name="product_detail")
+                                       which passes {"product_id": product_id}
+                                       into this template's context.
+
+  Assumption: `product_id` is provided in the template context by the view.
+  If your urls.py instead resolves everything client-side (e.g. via a hash
+  route), replace `{{ product_id }}` below with a value read from
+  `window.location`.
+#}
+
+{% block title %}Product — Restaurant{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'guest/css/product_detail.css' %}">
+  {% if session_token %}
+  <meta name="guest-session-token" content="{{ session_token }}">
+  <script>window.__GUEST_SESSION_TOKEN = "{{ session_token }}";</script>
+  {% endif %}
+  {% if product_json %}
+  <script>window.__INITIAL_PRODUCT = {{ product_json|safe }};</script>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="detail-page" data-page="product-detail" data-product-id="{{ product_id }}" data-category-name="{{ category_name|default:'Menu' }}">
+
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/menu/">Menu</a>
+    <span aria-hidden="true">/</span>
+    <span id="breadcrumb-category">…</span>
+    <span aria-hidden="true">/</span>
+    <span id="breadcrumb-name" aria-current="page">…</span>
+  </nav>
+
+  <div id="detail-error" class="detail-error" hidden>
+    <p class="detail-error__title">This product isn't on the shelf</p>
+    <p class="detail-error__body">It may have been removed or the link is out of date.</p>
+    <a class="btn-secondary" href="{{ back_url|default:'/menu/' }}">Back to category</a>
+  </div>
+
+  <div id="detail-content" class="detail-content">
+    <div class="detail-hero">
+      <div class="detail-media">
+        <img id="detail-image" class="detail-media__image" src="" alt="">
+        <span id="detail-stock-badge" class="badge"></span>
+      </div>
+
+      <div class="detail-summary">
+        <div class="detail-summary__header">
+          <p id="detail-category" class="detail-info__category"></p>
+          <h1 id="detail-name" class="detail-info__name"></h1>
+        </div>
+
+        <div class="detail-price-row">
+          <span class="detail-price" id="detail-price"></span>
+          <span id="detail-unit" class="detail-unit"></span>
+        </div>
+
+        <p id="detail-stock-copy" class="detail-stock-copy"></p>
+        <p id="detail-description" class="detail-info__description"></p>
+
+        <form id="add-to-cart-form" class="add-to-cart-form">
+          <div class="quantity-group">
+            <label for="quantity" class="add-to-cart-form__label">Quantity</label>
+            <div class="qty-stepper">
+              <button type="button" class="qty-stepper__btn" id="qty-minus" aria-label="Decrease quantity">−</button>
+              <input type="number" id="quantity" name="quantity" value="1" min="1" inputmode="numeric">
+              <button type="button" class="qty-stepper__btn" id="qty-plus" aria-label="Increase quantity">+</button>
+            </div>
+          </div>
+          <div class="detail-buttons">
+            <button type="submit" id="add-to-cart-btn" class="btn btn-primary">Order</button>
+            <a class="btn btn-outline" href="/product/{{ product_id }}/configure/">Configure Order</a>
+            <a class="btn btn-secondary" href="{{ back_url|default:'/menu/' }}">Back to Category List</a>
+          </div>
+        </form>
+
+        <p id="add-to-cart-message" class="form-message" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <section class="detail-grid">
+      <article class="detail-card detail-card--nutrition detail-card--wide">
+        <div class="detail-card__header">
+          <h2>Nutrition</h2>
+          <p class="detail-card__subtitle">Visual summary for a balanced choice.</p>
+        </div>
+        <div class="nutrition-grid">
+          <div>
+            <span class="nutrition-value">—</span>
+            <span>Calories</span>
+          </div>
+          <div>
+            <span class="nutrition-value">—</span>
+            <span>Protein</span>
+          </div>
+          <div>
+            <span class="nutrition-value">—</span>
+            <span>Carbs</span>
+          </div>
+          <div>
+            <span class="nutrition-value">—</span>
+            <span>Fat</span>
+          </div>
+          <div>
+            <span class="nutrition-value">—</span>
+            <span>Fiber</span>
+          </div>
+          <div>
+            <span class="nutrition-value">—</span>
+            <span>Salt</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="detail-card detail-card--ingredients">
+        <div class="detail-card__header">
+          <h2>Ingredients</h2>
+          <p class="detail-card__subtitle">Swipe allergies off the list before you order.</p>
+        </div>
+        <ul id="detail-ingredients" class="detail-ingredients__list"></ul>
+      </article>
+
+      <article class="detail-card detail-card--availability">
+        <div class="detail-card__header">
+          <h2>Available at</h2>
+          <p class="detail-card__subtitle">See stock across branches.</p>
+        </div>
+        <ul id="detail-branch-list" class="detail-availability__list" role="list"></ul>
+      </article>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  function apiFetch(path, options) {
+    options = options || {};
+    const token = localStorage.getItem("token");
+    const headers = Object.assign(
+      { "Content-Type": "application/json" },
+      token ? { Authorization: "Bearer " + token } : {},
+      options.headers || {}
+    );
+
+    const fetchOptions = Object.assign({}, options, { headers });
+    if (fetchOptions.method == null) fetchOptions.method = "GET";
+    if (fetchOptions.method === "GET") delete fetchOptions.body;
+
+    return fetch("/api" + path, fetchOptions)
+      .then(function (res) {
+        if (!res.ok) {
+          return res.json().catch(function () { return {}; }).then(function (body) {
+            throw new Error(body.detail || ("Request failed (" + res.status + ")"));
+          });
+        }
+        return res.status === 204 ? null : res.json();
+      });
+  }
+
+  function getGuestToken() {
+    try {
+      const meta = document.querySelector('meta[name="guest-session-token"]')?.getAttribute('content');
+      if (meta) return meta;
+      if (window.__GUEST_SESSION_TOKEN) return window.__GUEST_SESSION_TOKEN;
+      const sessRaw = sessionStorage.getItem('guest.session');
+      if (sessRaw) {
+        try { const parsed = JSON.parse(sessRaw); if (parsed && parsed.token) return parsed.token; } catch (_) {}
+      }
+      const ls = localStorage.getItem('guest_session_token');
+      if (ls) return ls;
+    } catch (_) {}
+    return null;
+  }
+
+  function guestFetch(path, options) {
+    options = options || {};
+    const token = getGuestToken();
+    if (!token) return Promise.reject(new Error('No table session'));
+    const headers = Object.assign({ 'Content-Type': 'application/json', 'X-Table-Session': token }, options.headers || {});
+    const fetchOptions = Object.assign({}, options, { headers });
+    if (fetchOptions.method == null) fetchOptions.method = 'GET';
+    if (fetchOptions.method === 'GET') delete fetchOptions.body;
+    return fetch('/api/guest' + path, fetchOptions).then(function (res) {
+      if (!res.ok) {
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          var message = body.detail || ('Request failed (' + res.status + ')');
+          throw new Error(message + ' (' + res.status + ')');
+        });
+      }
+      return res.status === 204 ? null : res.json();
+    });
+  }
+
+
+  function setOrderButtonsEnabled(enabled) {
+    var orderButton = document.getElementById('add-to-cart-btn');
+    var configureLink = document.querySelector('.detail-buttons a[href$="/configure/"]');
+    if (orderButton) {
+      orderButton.disabled = !enabled;
+      if (!enabled) {
+        orderButton.textContent = 'Order disabled';
+      }
+    }
+    if (configureLink) {
+      configureLink.classList.toggle('btn--disabled', !enabled);
+      configureLink.setAttribute('aria-disabled', String(!enabled));
+    }
+  }
+
+  function init() {
+    const page = document.querySelector('[data-page="product-detail"]');
+    const productId = page?.dataset?.productId;
+    const categoryName = page?.dataset?.categoryName || "Menu";
+
+    const errorEl = document.getElementById("detail-error");
+    const contentEl = document.getElementById("detail-content");
+    const ingredientsEl = document.getElementById("detail-ingredients");
+    const qtyInput = document.getElementById("quantity");
+    const breadcrumbName = document.getElementById("breadcrumb-name");
+
+    if (!page || !productId || !errorEl || !contentEl || !ingredientsEl || !qtyInput) {
+      if (errorEl) errorEl.hidden = false;
+      return;
+    }
+
+    function formatPrice(amount) {
+      if (amount == null) return "–";
+      return Number(amount).toLocaleString("en-US", {
+        style: "currency",
+        currency: "UZS",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
+    }
+
+    function renderProduct(p) {
+      document.title = p.name + " — Restaurant";
+      document.getElementById("breadcrumb-category").textContent = categoryName;
+      if (breadcrumbName) breadcrumbName.textContent = p.name;
+
+      document.getElementById("detail-image").src = p.image_url || "/static/img/placeholder.png";
+      document.getElementById("detail-image").alt = p.name;
+      document.getElementById("detail-category").textContent = categoryName;
+      document.getElementById("detail-name").textContent = p.name;
+      document.getElementById("detail-price").textContent = formatPrice(p.active_price || p.price);
+      document.getElementById("detail-unit").textContent = p.unit || "";
+      document.getElementById("detail-description").textContent =
+        p.description || "No description provided for this product yet.";
+
+      const stockBadge = document.getElementById("detail-stock-badge");
+      const stockCopy = document.getElementById("detail-stock-copy");
+      const stock = p.stock_quantity ?? 0;
+
+      if (stock <= 0) {
+        stockBadge.textContent = "Out of stock";
+        stockBadge.className = "badge badge--out";
+        if (stockCopy) stockCopy.textContent = "Out of stock — currently unavailable.";
+        setOrderButtonsEnabled(false);
+      } else {
+        if (stock <= 5) {
+          stockBadge.textContent = "Limited stock";
+          stockBadge.className = "badge badge--low";
+          if (stockCopy) stockCopy.textContent = "Only " + stock + " left.";
+        } else {
+          stockBadge.textContent = "In stock";
+          stockBadge.className = "badge badge--in";
+          if (stockCopy) stockCopy.textContent = stock + " available.";
+        }
+        setOrderButtonsEnabled(true);
+      }
+
+      const ingredients = Array.isArray(p.ingredients) && p.ingredients.length
+        ? p.ingredients.slice(0, 8).map(function (ingredient) {
+            return typeof ingredient === "string"
+              ? ingredient.trim()
+              : (ingredient.name || "").trim();
+          }).filter(function (ingredient) {
+            return ingredient.length > 0;
+          })
+        : (p.description || "")
+            .split(",")
+            .map(function (part) { return part.trim(); })
+            .filter(function (part) { return part.length > 0; });
+
+      ingredientsEl.innerHTML = ingredients.length
+        ? ingredients.map(function (ingredient) {
+            return '<li class="detail-ingredients__item">' + ingredient + '</li>';
+          }).join("")
+        : '<li class="detail-ingredients__item">No ingredient details available.</li>';
+
+      const branchList = document.getElementById("detail-branch-list");
+      if (branchList) {
+        branchList.innerHTML = "";
+        (p.branch_availability || []).forEach(function (b) {
+          const li = document.createElement("li");
+          li.className = "detail-availability__item";
+          li.innerHTML =
+            '<span class="detail-availability__name">' + b.branch_name + "</span>" +
+            '<span class="detail-availability__stock">' +
+              (b.stock > 0 ? b.stock + " in stock" : "Unavailable here") +
+            "</span>";
+          branchList.appendChild(li);
+        });
+        if (!branchList.children.length) {
+          branchList.innerHTML = '<li class="detail-availability__item">Availability by branch is not listed for this product.</li>';
+        }
+      }
+
+      if (errorEl) errorEl.hidden = true;
+      if (contentEl) contentEl.hidden = false;
+    }
+
+    function loadProduct() {
+      if (errorEl) errorEl.hidden = true;
+      if (window.__INITIAL_PRODUCT) {
+        renderProduct(window.__INITIAL_PRODUCT);
+        return;
+      }
+
+      const productPath = "/products/" + productId;
+
+      apiFetch(productPath)
+        .then(function (product) {
+          renderProduct(product);
+        })
+        .catch(function () {
+          if (errorEl) errorEl.hidden = false;
+        });
+    }
+
+    document.getElementById("qty-minus").addEventListener("click", function () {
+      qtyInput.value = Math.max(1, (parseInt(qtyInput.value, 10) || 1) - 1);
+    });
+
+    document.getElementById("qty-plus").addEventListener("click", function () {
+      qtyInput.value = (parseInt(qtyInput.value, 10) || 1) + 1;
+    });
+
+    document.getElementById("add-to-cart-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const btn = document.getElementById("add-to-cart-btn");
+      const msg = document.getElementById("add-to-cart-message");
+      const quantity = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+
+      btn.disabled = true;
+      btn.textContent = "Adding…";
+      msg.textContent = "";
+      msg.classList.remove("form-message--error");
+
+      const guestToken = getGuestToken();
+      const authToken = localStorage.getItem('token');
+
+      if (guestToken) {
+        // Guest dine-in flow: add items to guest session cart, then submit order
+        const calls = [];
+        for (let i = 0; i < quantity; i++) {
+          calls.push(guestFetch('/cart/items', {
+            method: 'POST',
+            body: JSON.stringify({ item_id: Number(productId), excluded_ingredients: [] }),
+          }));
+        }
+        Promise.all(calls)
+          .then(function () {
+            // submit guest order
+            return guestFetch('/orders', { method: 'POST' });
+          })
+          .then(function () {
+            window.location.href = '/orders/';
+          })
+          .catch(function (err) {
+            msg.textContent = err.message || "Couldn't add this item to your cart.";
+            msg.classList.add('form-message--error');
+          })
+          .finally(function () {
+            btn.disabled = false;
+            btn.textContent = 'Order';
+          });
+        return;
+      }
+
+      if (authToken) {
+        apiFetch('/cart/add', {
+          method: 'POST',
+          body: JSON.stringify({ product_id: Number(productId), quantity: quantity }),
+        })
+          .then(function () {
+            msg.textContent = quantity + ' item(s) added to your order.';
+          })
+          .catch(function (err) {
+            msg.textContent = err.message || "Couldn't add this item to your cart.";
+            msg.classList.add('form-message--error');
+          })
+          .finally(function () {
+            btn.disabled = false;
+            btn.textContent = 'Order';
+          });
+        return;
+      }
+
+      // No auth and no guest session — fallback: store a local guest order and show Orders
+      try {
+        const localKey = 'local_guest_orders';
+        const existing = JSON.parse(localStorage.getItem(localKey) || '[]');
+        const name = document.getElementById('detail-name')?.textContent || ('Item ' + productId);
+        const order = {
+          id: 'local-' + Date.now(),
+          status: 'submitted',
+          placed_at: new Date().toISOString(),
+          items: [{ cart_item_id: String(productId) + ':0', item_id: Number(productId), name: name, quantity: quantity, excluded_ingredients: [] }]
+        };
+        const deduped = existing.filter(function (entry) { return entry && entry.id !== order.id; });
+        deduped.push(order);
+        localStorage.setItem(localKey, JSON.stringify(deduped));
+        window.location.href = '/orders/';
+        return;
+      } catch (e) {
+        // last-resort: redirect to login
+        window.location.href = "/login/?next=" + encodeURIComponent(window.location.pathname + window.location.search);
+      }
+    });
+
+    loadProduct();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+{% endblock %}

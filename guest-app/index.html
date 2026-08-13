@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<!--
+  shop/index.html
+  ---------------
+  The single HTML shell for the React SPA.
+
+  Connection map:
+    <- vite.config.ts  : Vite uses this file as the build entry point.
+                         In dev it injects HMR scripts automatically.
+                         In production "npm run build" inlines hashed
+                         <link> and <script> tags into this file and
+                         outputs it as dist/index.html.
+
+    -> src/main.tsx    : Vite injects <script type="module" src="/src/main.tsx">
+                         in development. In production it is replaced by the
+                         compiled, hashed bundle in dist/assets/*.js.
+
+    -> React Router    : App.tsx defines all client-side routes. Because this
+                         is a SPA, every URL (/, /shop/, /cart/, /orders/, etc.)
+                         must be served by THIS file so React Router can take over.
+                         Django config: in production, configure Nginx / Django
+                         to return this index.html for any unmatched path.
+
+    -> /api/*          : Not served from here. Vite proxy (dev) or Nginx (prod)
+                         forwards /api/* to Django.
+
+    -> /ws/*           : Same — WebSocket connections go through the proxy.
+
+  Meta tags:
+    viewport           — responsive mobile layout
+    theme-color        — browser UI colour (green matching --green in global.css)
+    description        — SEO / social sharing
+    og:*               — Open Graph for social media previews
+
+  Fonts:
+    Inter from Google Fonts — matches the system-ui fallback in global.css.
+    Loaded with display=swap so text is visible immediately while font loads.
+
+  Stripe.js:
+    Loaded here as a plain <script> tag from stripe.com — this is required
+    by Stripe's PCI DSS guidelines. It MUST be on the page before the card
+    element mounts. Loading it here (not lazily in a component) guarantees
+    that. The @stripe/stripe-js npm package is the typed JS wrapper that
+    calls this global — both are needed.
+
+  Loading state:
+    #app-loading is shown while React hydrates. main.tsx removes it once
+    the app mounts (ReactDOM.createRoot renders into #root).
+
+  Accessibility:
+    lang="en" is set. All interactive elements in React components must
+    carry aria labels — this file sets the foundation.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <!-- Primary meta -->
+  <meta name="description"
+        content="Supermarket — fresh groceries, halal meat, and everyday essentials delivered to your door in 15 minutes."/>
+  <meta name="keywords"
+        content="supermarket, grocery, delivery, halal, uzbekistan, online shop"/>
+  <meta name="theme-color" content="#14532d"/>
+
+  <!-- Open Graph (social sharing) -->
+  <meta property="og:type"        content="website"/>
+  <meta property="og:title"       content="Supermarket — Fresh Every Day"/>
+  <meta property="og:description" content="Fresh groceries delivered in 15 minutes. Halal certified. Loyalty cashback on every order."/>
+  <meta property="og:image"       content="/static/og-image.png"/>
+
+  <!-- Favicon (emoji SVG — works in all modern browsers) -->
+  <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>"/>
+
+  <!-- Apple touch icon -->
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"/>
+
+  <!-- Preconnect to external origins used at runtime -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://js.stripe.com"/>
+
+  <!--
+    Inter font — loaded before React mounts to avoid flash of unstyled text.
+    Weights:  400 (body)  500 (nav links)  600 (labels)  700 (buttons)  900 (headings)
+    Subset:   latin — covers Uzbek Latin script
+  -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap"
+    rel="stylesheet"
+  />
+
+  <!--
+    Stripe.js — MUST be loaded from js.stripe.com, not bundled.
+    PCI DSS requirement: raw card data is handled by Stripe's JS on their
+    domain, never by our code. The @stripe/stripe-js npm package wraps this
+    global (window.Stripe) with TypeScript types.
+
+    This tag is present on every page because Stripe recommends loading it
+    on every page of the checkout flow for fraud detection signals, not just
+    the payment page.
+
+    See: https://stripe.com/docs/js/including
+  -->
+  <script src="https://js.stripe.com/v3/" async></script>
+
+  <title>Supermarket — Fresh Every Day</title>
+
+  <!--
+    Critical inline CSS — prevents flash of unstyled content (FOUC) before
+    React and the main CSS bundle load. Keeps the background and loading
+    spinner consistent with the app theme.
+  -->
+  <style>
+    /* Matches --green-dark and --bg from global.css */
+    :root {
+      --green-dark: #14532d;
+      --green:      #16a34a;
+      --bg:         #f9fafb;
+      --white:      #ffffff;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: #111827;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #root {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Loading screen shown while React bootstraps ── */
+    #app-loading {
+      position: fixed;
+      inset: 0;
+      background: var(--white);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      z-index: 9999;
+      transition: opacity 0.3s ease;
+    }
+
+    #app-loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-logo {
+      font-size: 3rem;
+      animation: bounce 1s ease-in-out infinite alternate;
+    }
+
+    .loading-name {
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: var(--green-dark);
+      letter-spacing: -0.5px;
+    }
+
+    .loading-name span { color: var(--green); }
+
+    .loading-spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #dcfce7;
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin   { to { transform: rotate(360deg); } }
+    @keyframes bounce { to { transform: translateY(-8px); } }
+
+    /* ── No-JS fallback ── */
+    .no-js-message {
+      display: none;
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+      font-size: 0.95rem;
+    }
+  </style>
+
+  <!--
+    Inline script: hide loading screen once the React root is ready.
+    main.tsx calls window.__appReady() after ReactDOM.createRoot renders.
+    Using a global function avoids any module loading race condition.
+  -->
+  <script>
+    window.__appReady = function() {
+      var el = document.getElementById("app-loading");
+      if (el) {
+        el.classList.add("hidden");
+        // Remove from DOM after transition so it doesn't block clicks
+        el.addEventListener("transitionend", function() { el.remove(); }, { once: true });
+      }
+    };
+
+    // If React hasn't rendered within 8 seconds, show an error message.
+    window.__loadTimeout = setTimeout(function() {
+      var el = document.getElementById("loading-sub");
+      if (el) el.textContent = "Taking longer than expected… try refreshing.";
+    }, 8000);
+  </script>
+</head>
+
+<body>
+
+  <!--
+    Loading screen — visible until React mounts.
+    main.tsx calls window.__appReady() to fade this out.
+  -->
+  <div id="app-loading" role="status" aria-live="polite" aria-label="Loading Supermarket app">
+    <div class="loading-logo" aria-hidden="true">🛒</div>
+    <div class="loading-name">Super<span>market</span></div>
+    <div class="loading-spinner" aria-hidden="true"></div>
+    <div id="loading-sub" style="font-size:.8rem;color:#9ca3af;margin-top:.25rem">
+      Loading…
+    </div>
+  </div>
+
+  <!--
+    React mounts here. App.tsx wraps all routes inside this element.
+    The div must be empty — React manages it entirely.
+  -->
+  <div id="root"></div>
+
+  <!--
+    Fallback for users with JavaScript disabled.
+    The noscript tag is hidden by default (CSS above); shown only without JS.
+  -->
+  <noscript>
+    <div class="no-js-message" style="display:block">
+      <h2>JavaScript is required</h2>
+      <p>
+        This shop requires JavaScript to run. Please enable it in your browser
+        settings and reload the page.
+      </p>
+      <p style="margin-top:1rem">
+        Alternatively, visit our
+        <a href="/shop/" style="color:#16a34a">classic storefront</a>.
+      </p>
+    </div>
+  </noscript>
+
+  <!--
+    Vite entry point.
+    In development: Vite injects this tag automatically from vite.config.ts.
+    In production:  "npm run build" replaces this with a hashed bundle tag,
+                    e.g. <script type="module" src="/assets/index-Dh8Qk1mz.js">
+
+    src/main.tsx:
+      1. Imports App.tsx (React Router routes)
+      2. Imports AuthContext + CartContext providers
+      3. Calls ReactDOM.createRoot(document.getElementById("root"))
+      4. Calls window.__appReady() to remove the loading screen
+      5. Clears window.__loadTimeout
+  -->
+  <script type="module" src="/src/main.tsx"></script>
+
+</body>
+</html>

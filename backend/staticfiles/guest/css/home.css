@@ -1,0 +1,145 @@
+/* ==========================================================================
+   guest/home.css
+   Styles for home.html -- Step 1 of the guest flow:
+   Logo (top) -> big centered [ MENU ] button -> Offers strip
+   Depends on base.css (tokens, .btn, .page). Loaded after base.css.
+   ========================================================================== */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: calc(100dvh - var(--header-height));
+  padding-top: var(--space-8);
+  padding-bottom: var(--space-8);
+  text-align: center;
+}
+
+/* ---- Logo ---- */
+.home__logo {
+  width: clamp(96px, 28vw, 160px);
+  height: auto;
+  margin-bottom: var(--space-2);
+}
+
+.home__welcome {
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-6);
+}
+
+.home__table-label {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ---- Big centered MENU button ---- */
+.home__menu-button {
+  width: clamp(180px, 60vw, 260px);
+  height: clamp(180px, 60vw, 260px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, var(--color-primary-dark), var(--color-primary));
+  color: var(--color-primary-contrast);
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 5vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin-block: var(--space-6);
+}
+
+.home__menu-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 44px rgba(31, 27, 22, 0.22);
+}
+
+.home__menu-button:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.home__menu-button-icon {
+  width: 36px;
+  height: 36px;
+}
+
+/* ---- Offers strip: Weekly Special | Specialties | Limited ---- */
+.offers-strip {
+  width: 100%;
+  margin-top: auto;
+  padding-top: var(--space-6);
+}
+
+.offers-strip__heading {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+  text-align: left;
+}
+
+.offers-strip__track {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: var(--space-2);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.offers-strip__track::-webkit-scrollbar {
+  display: none;
+}
+
+.offer-chip {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  min-width: 150px;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  text-align: left;
+  color: var(--color-primary-contrast);
+}
+
+.offer-chip--weekly-special {
+  background: linear-gradient(135deg, #d9483a, #a83224);
+}
+
+.offer-chip--specialties {
+  background: linear-gradient(135deg, #4a6b53, #2f4c38);
+}
+
+.offer-chip--limited {
+  background: linear-gradient(135deg, #c47f0a, #8f5b06);
+}
+
+.offer-chip__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+
+.offer-chip__title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-top: var(--space-1);
+}
+
+@media (min-width: 640px) {
+  .offers-strip__track {
+    justify-content: center;
+  }
+}

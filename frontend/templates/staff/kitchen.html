@@ -1,0 +1,74 @@
+{% extends "staff/base.html" %}
+{% block title %}Kitchen{% endblock %}
+{% block nav_kitchen %}active{% endblock %}
+{% block content %}
+<h1>Kitchen board</h1>
+<p class="muted" style="margin-bottom:1.5rem;">Confirmed tickets, grouped by prep stage.</p>
+
+<div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:1.25rem;">
+
+  <div>
+    <h3><span class="status-badge status-new">New</span></h3>
+    {% for ticket in tickets_new %}
+      <div class="card" style="border-left:4px solid var(--accent); margin-bottom:.9rem;">
+        <p style="margin:0 0 .3rem; font-weight:700;">Table {{ ticket.order.table.number }} · Ticket #{{ ticket.id }}</p>
+        <p class="muted" style="margin:0 0 .6rem; border-bottom:1px dashed var(--border); padding-bottom:.5rem;">
+          Waiter: {{ ticket.order.confirmed_by_waiter.name|default:"—" }}
+        </p>
+        <ul style="margin:0 0 .75rem; padding-left:1.1rem; font-size:.9rem;">
+          {% for item in ticket.order.items.all %}
+            <li>{{ item.quantity }}× {{ item.menu_item.name }}
+              {% if item.excluded_ingredients %} <span class="muted">(no {{ item.excluded_ingredients|join:", " }})</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="set_ticket_status">
+          <input type="hidden" name="ticket_id" value="{{ ticket.id }}">
+          <input type="hidden" name="status" value="in_progress">
+          <button type="submit" class="btn btn-warning">Start preparing</button>
+        </form>
+      </div>
+    {% empty %}
+      <div class="empty-state">No new tickets.</div>
+    {% endfor %}
+  </div>
+
+  <div>
+    <h3><span class="status-badge status-in_progress">In progress</span></h3>
+    {% for ticket in tickets_in_progress %}
+      <div class="card" style="border-left:4px solid var(--occupied); margin-bottom:.9rem;">
+        <p style="margin:0 0 .3rem; font-weight:700;">Table {{ ticket.order.table.number }} · Ticket #{{ ticket.id }}</p>
+        <ul style="margin:0 0 .75rem; padding-left:1.1rem; font-size:.9rem;">
+          {% for item in ticket.order.items.all %}
+            <li>{{ item.quantity }}× {{ item.menu_item.name }}</li>
+          {% endfor %}
+        </ul>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="set_ticket_status">
+          <input type="hidden" name="ticket_id" value="{{ ticket.id }}">
+          <input type="hidden" name="status" value="ready">
+          <button type="submit" class="btn btn-success">Mark ready</button>
+        </form>
+      </div>
+    {% empty %}
+      <div class="empty-state">Nothing in progress.</div>
+    {% endfor %}
+  </div>
+
+  <div>
+    <h3><span class="status-badge status-ready">Ready</span></h3>
+    {% for ticket in tickets_ready %}
+      <div class="card" style="border-left:4px solid var(--free); margin-bottom:.9rem;">
+        <p style="margin:0 0 .3rem; font-weight:700;">Table {{ ticket.order.table.number }} · Ticket #{{ ticket.id }}</p>
+        <p class="muted" style="margin:0;">Waiting for {{ ticket.order.confirmed_by_waiter.name|default:"assigned waiter" }} to pick up.</p>
+      </div>
+    {% empty %}
+      <div class="empty-state">No tickets ready for pickup.</div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

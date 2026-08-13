@@ -1,0 +1,142 @@
+/* ==========================================================================
+   guest/cart.css
+   Styles for cart.html -- Step 6 of the guest flow.
+   Lists everything added so far with any configured exclusions.
+   Deliberately shows NO prices (guest_api schemas.py omits price fields
+   server-side; this stylesheet must never introduce a price element).
+   [ Place Order ] submits the cart -> an Order ID is generated.
+   Depends on base.css (.card, .tag, .btn, .empty-state, .bottom-bar).
+   ========================================================================== */
+
+.cart {
+  padding-top: var(--space-5);
+  padding-bottom: calc(var(--bottom-nav-height) + var(--space-8));
+}
+
+.cart__heading {
+  font-size: 1.4rem;
+  margin-bottom: var(--space-1);
+}
+
+.cart__subheading {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  margin-bottom: var(--space-5);
+}
+
+.cart-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cart-item {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.cart-item__thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.cart-item__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.cart-item__name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.cart-item__qty {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* Exclusions attached via 'Configure Order', e.g. "no tomatoes" */
+.cart-item__exclusions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.cart-item__exclusions .tag {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 30%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
+}
+
+.cart-item__remove {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-1);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.cart-item__remove:hover {
+  color: var(--color-danger);
+}
+
+/* Explicit no-price notice, reassures the guest this is intentional */
+.cart__no-price-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+/* Previously-submitted orders shown below the draft cart, with status */
+.cart__orders-heading {
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-3);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.order-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.order-status-badge {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.order-status-badge--submitted,
+.order-status-badge--waiter_confirmed { background: #fdf0d5; color: var(--color-warning); }
+.order-status-badge--kitchen_in_progress { background: #e3ecf9; color: #2a5fb0; }
+.order-status-badge--ready { background: #e6f4ea; color: var(--color-success); }
+.order-status-badge--served { background: #ece9e3; color: var(--color-text-muted); }
+
+.cart .empty-state .btn { margin-top: var(--space-4); }
+
+/* [ Place Order ] lives in the fixed .bottom-bar from base.css */
+.cart__place-order-btn {
+  width: 100%;
+}

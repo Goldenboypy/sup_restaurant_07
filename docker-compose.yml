@@ -1,0 +1,35 @@
+services:
+  web:
+    build: .
+    command: /code/entrypoint.sh
+    working_dir: /code
+    volumes:
+      - ./backend:/code
+      - ./frontend:/code/frontend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./docker.env
+    depends_on:
+      - db
+    environment:
+      POSTGRES_DB: django_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: django_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+
+
+
+
+volumes:
+  postgres_data:

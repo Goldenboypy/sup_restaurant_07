@@ -1,0 +1,87 @@
+/* ==========================================================================
+   staff/payment_requests.css
+   Styles for payment_requests.html -- WAITER VIEW, step 7 (payment request).
+   Tables waiting to be paid/cleared. When the guest taps [ Pay ], the
+   table flips to 'Bill Requested' and the assigned waiter is notified;
+   completing here finalizes the payment and returns the table to Free.
+   Depends on base.css (.card, .status-badge, .waiter-badge, .btn).
+   ========================================================================== */
+
+.payment-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.payment-request-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-left: 4px solid var(--status-bill-requested-fg);
+}
+
+.payment-request-row__table {
+  font-weight: 800;
+  font-size: 1.1rem;
+  min-width: 80px;
+}
+
+.payment-request-row__meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.payment-request-row__requested-at {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Card or Cash, as chosen by the guest in POST /api/guest/payment */
+.payment-method-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: fit-content;
+}
+
+.payment-method-tag--card {
+  background: var(--status-occupied-bg);
+  color: var(--status-occupied-fg);
+}
+
+.payment-method-tag--cash {
+  background: var(--status-free-bg);
+  color: var(--status-free-fg);
+}
+
+.payment-request-row__total {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.payment-request-row__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .payment-request-row {
+    flex-wrap: wrap;
+  }
+
+  .payment-request-row__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

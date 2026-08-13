@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<!--
+  frontend/templates/cart.html
+  ----------------------------
+  Menu cart page.
+
+  Connection map:
+    <- frontend/static/js/cart.js    : Cart.load(), Cart.update(), Cart.checkout()
+    <- frontend/static/css/main.css  : global styles, variables
+    -> /api/cart/                    : GET, POST add, PUT update, DELETE clear
+    -> /api/orders/                  : POST  (checkout)
+    -> /api/branches/                : GET   (pickup branch select)
+    -> ws/stock/<id>/                : StockConsumer (consumers.py) — live badge
+
+  Django URL:
+    config/urls.py  path("cart/", cart_view)   (add to views.py + urls.py)
+
+  Features:
+    - Live stock badge per line item (WebSocket)
+    - Quantity stepper (+/-) with direct input
+    - Remove individual item (qty = 0)
+    - Clear entire cart
+    - Delivery / Pickup toggle — fee updates instantly
+    - Branch selector for pickup
+    - Delivery address field
+    - Order note
+    - Full order summary panel
+    - Login prompt when unauthenticated
+    - Loading overlay during API calls
+    - Toast notifications for all actions
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cart — Restaurant</title>
+
+  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/responsive.css">
+
+  <style>
+    /* ── Reset & Variables ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:        #16a34a;
+      --green-dark:   #14532d;
+      --green-light:  #dcfce7;
+      --green-mid:    #86efac;
+      --red:          #dc2626;
+      --red-light:    #fee2e2;
+      --yellow:       #d97706;
+      --yellow-light: #fef3c7;
+      --blue:         #2563eb;
+      --gray-50:      #f9fafb;
+      --gray-100:     #f3f4f6;
+      --gray-200:     #e5e7eb;
+      --gray-400:     #9ca3af;
+      --gray-600:     #4b5563;
+      --gray-900:     #111827;
+      --white:        #ffffff;
+      --radius:       10px;
+      --shadow:       0 2px 12px rgba(0,0,0,.08);
+      --shadow-lg:    0 8px 30px rgba(0,0,0,.12);
+      --transition:   .18s ease;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-900);
+      min-height: 100vh;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ── Navbar ──────────────────────────────────────────────────────────── */
+    .navbar {
+      background: var(--green-dark);
+      height: 58px;
+      display: flex;
+      align-items: center;
+      padding: 0 1.5rem;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    }
+
+    .navbar__logo {
+      color: var(--white);
+      font-size: 1.3rem;
+      font-weight: 800;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+
+    .navbar__logo span { color: var(--green-mid); }
+
+    .navbar__links {
+      display: flex;
+      gap: 1.2rem;
+      margin-left: auto;
+      align-items: center;
+    }
+
+    .navbar__links a {
+      color: #d1fae5;
+      text-decoration: none;
+      font-size: .9rem;
+      transition: color var(--transition);
+    }
+
+    .navbar__links a:hover { color: var(--white); }
+
+    .navbar__cart-icon {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      color: var(--white) !important;
+      font-size: 1.2rem;
+    }
+
+    #cart-badge {
+      position: absolute;
+      top: -6px;
+      right: -8px;
+      background: var(--red);
+      color: var(--white);
+      font-size: .65rem;
+      font-weight: 800;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 3px;
+    }
+
+    /* ── Page Header ─────────────────────────────────────────────────────── */
+    .page-header {
+      background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .page-header__title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--green-dark);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .page-header__count {
+      font-size: .9rem;
+      color: var(--gray-600);
+      font-weight: 400;
+    }
+
+    .btn-clear {
+      background: none;
+      border: 1px solid var(--gray-200);
+      color: var(--gray-600);
+      font-size: .85rem;
+      padding: .45rem .9rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+    }
+
+    .btn-clear:hover {
+      background: var(--red-light);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    .cart-layout {
+      max-width: 1100px;
+      margin: 2rem auto;
+      padding: 0 1.25rem;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 800px) {
+      .cart-layout { grid-template-columns: 1fr; }
+    }
+
+    /* ── Cart Table ──────────────────────────────────────────────────────── */
+    .cart-card {
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .cart-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .cart-th {
+      text-align: left;
+      padding: .85rem 1rem;
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--gray-600);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      border-bottom: 1px solid var(--gray-200);
+      background: var(--gray-50);
+    }
+
+    .cart-row {
+      border-bottom: 1px solid var(--gray-100);
+      transition: background var(--transition);
+    }
+
+    .cart-row:last-child { border-bottom: none; }
+    .cart-row:hover { background: var(--gray-50); }
+
+    .cart-cell {
+      padding: 1rem;
+      vertical-align: middle;
+    }
+
+    /* Product cell */
+    .cart-product {
+      display: flex;
+      align-items: center;
+      gap: .85rem;
+    }
+
+    .cart-product__img {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      background: var(--green-light);
+      overflow: hidden;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cart-product__img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .cart-product__placeholder { font-size: 1.8rem; }
+
+    .cart-product__info {
+      display: flex;
+      flex-direction: column;
+      gap: .2rem;
+    }
+
+    .cart-product__name {
+      font-weight: 700;
+      font-size: .95rem;
+      line-height: 1.3;
+    }
+
+    .cart-product__unit-price {
+      font-size: .8rem;
+      color: var(--gray-600);
+    }
+
+    /* Stock badge (populated by cart.js via WebSocket) */
+    .cart-stock-badge {
+      font-size: .72rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+    }
+
+    .cart-stock-badge--ok  { background: var(--green-light);  color: var(--green-dark); }
+    .cart-stock-badge--low { background: var(--yellow-light); color: var(--yellow); }
+    .cart-stock-badge--out { background: var(--red-light);    color: var(--red); }
+
+    /* Quantity control */
+    .qty-control {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--gray-200);
+      border-radius: 7px;
+      overflow: hidden;
+      width: fit-content;
+    }
+
+    .qty-btn {
+      width: 32px;
+      height: 36px;
+      background: var(--gray-100);
+      border: none;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background var(--transition);
+      color: var(--gray-900);
+    }
+
+    .qty-btn:hover { background: var(--green-light); color: var(--green-dark); }
+
+    .qty-input {
+      width: 46px;
+      height: 36px;
+      border: none;
+      border-left: 1px solid var(--gray-200);
+      border-right: 1px solid var(--gray-200);
+      text-align: center;
+      font-size: .95rem;
+      font-weight: 600;
+      color: var(--gray-900);
+      -moz-appearance: textfield;
+    }
+
+    .qty-input::-webkit-inner-spin-button,
+    .qty-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+    /* Subtotal cell */
+    .cart-cell--subtotal {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--green-dark);
+      white-space: nowrap;
+    }
+
+    /* Remove button */
+    .remove-btn {
+      background: none;
+      border: none;
+      font-size: 1.3rem;
+      color: var(--gray-400);
+      cursor: pointer;
+      padding: .25rem .5rem;
+      border-radius: 5px;
+      transition: color var(--transition), background var(--transition);
+      line-height: 1;
+    }
+
+    .remove-btn:hover { color: var(--red); background: var(--red-light); }
+
+    /* ── Empty / Login States ────────────────────────────────────────────── */
+    .state-box {
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 3rem 2rem;
+      text-align: center;
+    }
+
+    .state-box__icon  { font-size: 3.5rem; margin-bottom: 1rem; }
+    .state-box__title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: .5rem;
+    }
+
+    .state-box__sub {
+      font-size: .9rem;
+      color: var(--gray-600);
+      margin-bottom: 1.5rem;
+    }
+
+    .btn-primary {
+      display: inline-block;
+      background: var(--green);
+      color: var(--white);
+      font-weight: 700;
+      font-size: .95rem;
+      padding: .7rem 1.6rem;
+      border-radius: 8px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: background var(--transition), transform var(--transition);
+    }
+
+    .btn-primary:hover { background: var(--green-dark); transform: translateY(-1px); }
+
+    /* ── Order Summary Panel ─────────────────────────────────────────────── */
+    .summary-card {
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: sticky;
+      top: 74px;
+    }
+
+    .summary-header {
+      background: var(--green-dark);
+      color: var(--white);
+      padding: 1rem 1.25rem;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: .3px;
+    }
+
+    .summary-body { padding: 1.25rem; }
+
+    /* Delivery toggle */
+    .delivery-toggle {
+      display: flex;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 1.25rem;
+    }
+
+    .delivery-toggle label {
+      flex: 1;
+      text-align: center;
+      padding: .6rem .5rem;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--gray-600);
+      transition: background var(--transition), color var(--transition);
+    }
+
+    .delivery-toggle input[type="radio"] { display: none; }
+
+    .delivery-toggle input:checked + label {
+      background: var(--green);
+      color: var(--white);
+    }
+
+    /* Address / branch fields */
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--gray-600);
+      margin-bottom: .35rem;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: .6rem .8rem;
+      border: 1px solid var(--gray-200);
+      border-radius: 7px;
+      font-size: .9rem;
+      color: var(--gray-900);
+      background: var(--white);
+      transition: border-color var(--transition), box-shadow var(--transition);
+      resize: vertical;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(22,163,74,.15);
+    }
+
+    /* Price rows */
+    .summary-divider {
+      border: none;
+      border-top: 1px solid var(--gray-200);
+      margin: 1rem 0;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: .9rem;
+      margin-bottom: .6rem;
+      color: var(--gray-600);
+    }
+
+    .summary-row--total {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--gray-900);
+      margin-top: .25rem;
+      margin-bottom: 0;
+    }
+
+    .summary-row__value { font-weight: 600; }
+
+    /* Checkout button */
+    .checkout-btn {
+      width: 100%;
+      margin-top: 1.25rem;
+      padding: .85rem;
+      background: var(--green);
+      color: var(--white);
+      border: none;
+      border-radius: 9px;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: .3px;
+      transition: background var(--transition), transform var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+    }
+
+    .checkout-btn:hover { background: var(--green-dark); transform: translateY(-1px); }
+
+    .summary-secure {
+      margin-top: .75rem;
+      text-align: center;
+      font-size: .75rem;
+      color: var(--gray-400);
+    }
+
+    /* ── Loading Overlay ─────────────────────────────────────────────────── */
+    #cart-loading {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      backdrop-filter: blur(2px);
+    }
+
+    .spinner {
+      width: 42px;
+      height: 42px;
+      border: 4px solid var(--green-light);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ───────────────────────────────────────────────────────────── */
+    .cart-toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: .8rem 1.3rem;
+      border-radius: 9px;
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--white);
+      z-index: 1000;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity .3s, transform .3s;
+      box-shadow: var(--shadow-lg);
+      max-width: 320px;
+    }
+
+    .cart-toast--visible   { opacity: 1; transform: translateY(0); }
+    .cart-toast--success   { background: var(--green); }
+    .cart-toast--error     { background: var(--red); }
+    .cart-toast--warning   { background: var(--yellow); }
+    .cart-toast--info      { background: var(--blue); }
+
+    /* ── Continue Menu link ──────────────────────────────────────────── */
+    .continue-link {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      color: var(--green);
+      font-size: .85rem;
+      font-weight: 600;
+      text-decoration: none;
+      margin-top: 1rem;
+      padding: .35rem 0;
+    }
+
+    .continue-link:hover { color: var(--green-dark); text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- NAVBAR                                                                   -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<nav class="navbar">
+  <a class="navbar__logo" href="/">Super<span>market</span></a>
+  <div class="navbar__links">
+    <a href="/">Home</a>
+    <a href="/menu/">Menu</a>
+    <a href="/orders/">My Orders</a>
+    <a href="/cart/" class="navbar__cart-icon" title="Cart">
+      🛒
+      <span id="cart-badge"></span>
+    </a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- PAGE HEADER                                                              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="page-header">
+  <h1 class="page-header__title">
+    🛒 Your Cart
+    <span class="page-header__count" id="summary-count"></span>
+  </h1>
+  <button class="btn-clear" id="cart-clear-btn">Clear cart</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- MAIN LAYOUT                                                              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<main class="cart-layout">
+
+  <!-- ── LEFT: Cart items ──────────────────────────────────────────────── -->
+  <div>
+
+    <!-- Login prompt (shown when not logged in) -->
+    <div id="cart-login" class="state-box hidden">
+      <div class="state-box__icon">🔒</div>
+      <div class="state-box__title">Please log in</div>
+      <div class="state-box__sub">You need an account to view your cart.</div>
+      <a href="/login/" class="btn-primary">Log in</a>
+    </div>
+
+    <!-- Empty cart (shown when cart has no items) -->
+    <div id="cart-empty" class="state-box hidden">
+      <div class="state-box__icon">🛒</div>
+      <div class="state-box__title">Your cart is empty</div>
+      <div class="state-box__sub">
+        Looks like you haven't added anything yet.
+      </div>
+      <a href="/menu/" class="btn-primary">Start Browsing Menu</a>
+    </div>
+
+    <!-- Cart table (populated by cart.js) -->
+    <div class="cart-card">
+      <div id="cart-container">
+        <!-- rows injected by cart.js :: render() -->
+      </div>
+    </div>
+
+    <a class="continue-link" href="/menu/">&#8592; Continue Browsing Menu</a>
+  </div>
+
+  <!-- ── RIGHT: Order summary panel ───────────────────────────────────── -->
+  <aside id="cart-summary" class="summary-card hidden">
+    <div class="summary-header">Order Summary</div>
+    <div class="summary-body">
+
+      <!-- Delivery type toggle
+           Changing this radio re-renders totals via cart.js :: _bindDeliveryToggle() -->
+      <div class="delivery-toggle">
+        <input type="radio" name="delivery_type" id="type-delivery" value="delivery" checked/>
+        <label for="type-delivery">🚚 Delivery</label>
+        <input type="radio" name="delivery_type" id="type-pickup" value="pickup"/>
+        <label for="type-pickup">🏪 Pickup</label>
+      </div>
+
+      <!-- Delivery address (shown for "delivery") -->
+      <div class="form-group" id="address-group">
+        <label class="form-label" for="delivery-address">Delivery Address</label>
+        <textarea class="form-control"
+                  id="delivery-address"
+                  rows="2"
+                  placeholder="Street, district, city…"></textarea>
+      </div>
+
+      <!-- Branch selector (shown for "pickup")
+           Options populated by cart.js :: loadBranches() from GET /api/branches/ -->
+      <div class="form-group hidden" id="branch-group">
+        <label class="form-label" for="branch-select">Store Branch</label>
+        <select class="form-control" id="branch-select">
+          <option value="">-- Select branch --</option>
+        </select>
+      </div>
+
+      <!-- Order note -->
+      <div class="form-group">
+        <label class="form-label" for="order-note">Note (optional)</label>
+        <input class="form-control"
+               id="order-note"
+               type="text"
+               placeholder="Allergies, preferences, gate code…"/>
+      </div>
+
+      <hr class="summary-divider"/>
+
+      <!-- Price breakdown -->
+      <div class="summary-row">
+        <span>Subtotal</span>
+        <span class="summary-row__value" id="summary-subtotal">—</span>
+      </div>
+      <div class="summary-row">
+        <span>Delivery fee</span>
+        <span class="summary-row__value" id="summary-fee">—</span>
+      </div>
+      <hr class="summary-divider"/>
+      <div class="summary-row summary-row--total">
+        <span>Total</span>
+        <span id="summary-total">—</span>
+      </div>
+
+      <!-- Checkout button
+           Wired to cart.js :: Cart.checkout() by DOMContentLoaded listener -->
+      <button class="checkout-btn" id="checkout-btn">
+        &#128274; Place Order
+      </button>
+
+      <p class="summary-secure">&#128274; Secure checkout &nbsp;·&nbsp; Free returns</p>
+    </div>
+  </aside>
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- LOADING OVERLAY (toggled by cart.js :: setLoading())                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="cart-loading" class="hidden">
+  <div class="spinner"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SCRIPTS                                                                  -->
+<!-- cart.js must load after DOM — handles all logic, API calls, WebSockets  -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+  // Toggle delivery address / branch fields based on radio selection.
+  // Mirrors the fee update done in cart.js so the UI reacts instantly.
+  document.addEventListener("DOMContentLoaded", () => {
+    const addrGroup   = document.getElementById("address-group");
+    const branchGroup = document.getElementById("branch-group");
+
+    document.querySelectorAll('input[name="delivery_type"]').forEach(radio => {
+      radio.addEventListener("change", () => {
+        const isDelivery = radio.value === "delivery";
+        addrGroup.classList.toggle("hidden",  !isDelivery);
+        branchGroup.classList.toggle("hidden", isDelivery);
+      });
+    });
+  });
+</script>
+
+<script src="/static/js/main.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/auth.js"></script>
+<script src="/static/js/cart.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,323 @@
+{% extends "guest/base.html" %}
+{% load static %}
+
+
+{#
+  templates/orders.html
+  ---------------------
+  Authenticated customer's order history: past orders as a receipt-style
+  list, expandable to show line items, with status and a reorder action.
+
+
+  Connection map:
+      → GET  /api/orders/            : list of the logged-in user's orders
+                                        (supports ?page=)
+      → GET  /api/orders/{id}/       : line items, loaded lazily on expand
+      → POST /api/orders/{id}/reorder/ : "Reorder" button
+                                        (adjust the path if your orders_router
+                                        exposes this differently — falls back
+                                        to re-adding items via /api/cart/items/
+                                        if the endpoint 404s)
+      ← templates/base.html          : nav, auth-token helper, layout
+      ← config/urls.py               : served at e.g. /orders/ (login required)
+
+
+  Assumption: this page requires an authenticated user (Bearer token present).
+  If the token is missing, the page redirects to the login route rather than
+  calling the API and surfacing a raw 401.
+#}
+
+
+{% block title %}Your orders — Supermarket{% endblock %}
+
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'guest/css/orders.css' %}">
+  {% if session_token %}
+    <meta name="guest-session-token" content="{{ session_token }}">
+    <script>window.__GUEST_SESSION_TOKEN = "{{ session_token }}";</script>
+  {% endif %}
+{% endblock %}
+
+
+{% block content %}
+<div class="orders-page" data-page="orders">
+  <header class="orders-header">
+    <p class="orders-header__eyebrow">Your account</p>
+    <h1 class="orders-header__title">My Orders</h1>
+    <p class="orders-header__sub">Review your selected items before sending them to the waiter.</p>
+  </header>
+
+  <div id="orders-loading" class="orders-loading">
+    <div class="receipt-skeleton"></div>
+    <div class="receipt-skeleton"></div>
+    <div class="receipt-skeleton"></div>
+  </div>
+
+  <div id="orders-empty" class="empty-state" hidden>
+    <p class="empty-state__title">No items selected yet</p>
+    <p class="empty-state__body">Add dishes from the menu and they will appear here.</p>
+    <a class="btn btn--primary" href="/menu/">Continue ordering</a>
+  </div>
+
+  <ol id="orders-list" class="orders-list" hidden></ol>
+
+  <div id="orders-actions" class="orders-actions" hidden>
+    <button id="finish-order-btn" class="btn btn--primary" type="button">Finish Order</button>
+    <a class="btn btn--secondary" href="/menu/">Continue Ordering</a>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  const apiFetch = window.apiFetch || function (path, options) {
+    options = options || {};
+    const token = localStorage.getItem("token");
+    const headers = Object.assign(
+      { "Content-Type": "application/json" },
+      token ? { Authorization: "Bearer " + token } : {},
+      options.headers || {}
+    );
+    return fetch("/api" + path, Object.assign({}, options, { headers }))
+      .then(function (res) {
+        if (!res.ok) {
+          return res.json().catch(function () { return {}; }).then(function (body) {
+            throw new Error(body.detail || ("Request failed (" + res.status + ")"));
+          });
+        }
+        return res.status === 204 ? null : res.json();
+      });
+  };
+
+  function getGuestToken() {
+    try {
+      const meta = document.querySelector('meta[name="guest-session-token"]')?.getAttribute('content');
+      if (meta) return meta;
+      if (window.__GUEST_SESSION_TOKEN) return window.__GUEST_SESSION_TOKEN;
+      const sessRaw = sessionStorage.getItem('guest.session');
+      if (sessRaw) {
+        try { const parsed = JSON.parse(sessRaw); if (parsed && parsed.token) return parsed.token; } catch (_) {}
+      }
+      const ls = localStorage.getItem('guest_session_token');
+      if (ls) return ls;
+    } catch (_) {}
+    return null;
+  }
+
+  function guestFetch(path, options) {
+    options = options || {};
+    const token = getGuestToken();
+    if (!token) return Promise.reject(new Error('No table session'));
+    const headers = Object.assign({ 'Content-Type': 'application/json', 'X-Table-Session': token }, options.headers || {});
+    const fetchOptions = Object.assign({}, options, { headers });
+    if (fetchOptions.method == null) fetchOptions.method = 'GET';
+    if (fetchOptions.method === 'GET') delete fetchOptions.body;
+    return fetch('/api/guest' + path, fetchOptions).then(function (res) {
+      if (!res.ok) {
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          throw new Error(body.detail || ('Request failed (' + res.status + ')'));
+        });
+      }
+      return res.status === 204 ? null : res.json();
+    });
+  }
+
+  const authToken = localStorage.getItem("token");
+  const guestToken = getGuestToken();
+  const isGuestFlow = !authToken && !!guestToken;
+
+  const loadingEl = document.getElementById("orders-loading");
+  const emptyEl = document.getElementById("orders-empty");
+  const listEl = document.getElementById("orders-list");
+  const actionsEl = document.getElementById("orders-actions");
+  const toast = document.getElementById("toast");
+
+  function showToast(message, isError) {
+    toast.textContent = message;
+    toast.hidden = false;
+    toast.classList.toggle("toast--error", !!isError);
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(function () { toast.hidden = true; }, 3200);
+  }
+
+  function money(value) {
+    const amount = Number(value || 0);
+    return '$' + amount.toFixed(2);
+  }
+
+  function getProductImageUrl(item) {
+    if (!item) return "";
+    const image = item.image_url || item.photo_url || item.image || item.photo || "";
+    if (!image) return "";
+    const imageString = String(image).trim();
+    if (!imageString) return "";
+    if (imageString.startsWith('http://') || imageString.startsWith('https://')) return imageString;
+    if (imageString.startsWith('/')) return imageString;
+    return '/media/' + imageString.replace(/^\/+/, '');
+  }
+
+  function getItemPrice(item, detail) {
+    const directPrice = Number(detail && typeof detail.price === 'number' ? detail.price : detail && detail.price ? detail.price : 0);
+    if (Number.isFinite(directPrice) && directPrice > 0) return directPrice;
+    const fallback = Number(item && item.price ? item.price : 0);
+    return Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
+  }
+
+  function dedupeItems(items) {
+    const seen = new Set();
+    return (Array.isArray(items) ? items : []).filter(function (item) {
+      const key = item && item.cart_item_id ? String(item.cart_item_id) : item && item.item_id ? String(item.item_id) : null;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+async function getItemDetail(itemId, fallback) {
+    const id = Number(itemId);
+    try {
+      if (isGuestFlow) {
+        const detail = await guestFetch('/menu/items/' + id);
+        return {
+          image_url: getProductImageUrl(detail),
+          price: Number(detail.price || 0),
+        };
+      }
+
+      // Public product lookup — works whether the user is authenticated or not.
+      const detail = await apiFetch('/products/' + id);
+      return {
+        image_url: getProductImageUrl(detail),
+        price: Number(detail.active_price ?? detail.price ?? 0),
+      };
+    } catch (_) {
+      return {
+        image_url: getProductImageUrl(fallback),
+        price: getItemPrice(fallback, null),
+      };
+    }
+  }
+
+  function itemCard(item, detail) {
+    const li = document.createElement('li');
+    li.className = 'order-line';
+    const imageUrl = detail && detail.image_url ? detail.image_url : getProductImageUrl(item);
+    const imageHtml = imageUrl
+      ? '<img class="order-line__image" src="' + imageUrl + '" alt="' + (item.name || 'Product') + '" loading="lazy">'
+      : '<span class="order-line__image-placeholder" aria-hidden="true"></span>';
+    const exclusions = Array.isArray(item.excluded_ingredients) && item.excluded_ingredients.length
+      ? '<ul class="order-line__exclusions">' + item.excluded_ingredients.map(function (ingredient) {
+          return '<li>No ' + ingredient + '</li>';
+        }).join('') + '</ul>'
+      : '';
+    const price = getItemPrice(item, detail);
+
+    li.innerHTML =
+      imageHtml +
+      '<div class="order-line__meta">' +
+        '<div class="order-line__top-row">' +
+          '<span class="order-line__name">' + (item.name || 'Item') + '</span>' +
+          '<span class="order-line__price">' + money(price) + '</span>' +
+        '</div>' +
+        '<span class="order-line__qty">Qty: ' + (item.quantity || 1) + '</span>' +
+        exclusions +
+      '</div>';
+    return li;
+  }
+
+  async function renderCart(items) {
+    loadingEl.hidden = true;
+    const uniqueItems = dedupeItems(items);
+
+    if (!uniqueItems.length) {
+      emptyEl.hidden = false;
+      listEl.hidden = true;
+      actionsEl.hidden = true;
+      return;
+    }
+
+    emptyEl.hidden = true;
+    listEl.hidden = false;
+    actionsEl.hidden = false;
+    listEl.innerHTML = '';
+
+    const enriched = await Promise.all(uniqueItems.map(async function (item) {
+      const detail = await getItemDetail(item.item_id, item);
+      return { item, detail };
+    }));
+
+    enriched.forEach(function (entry) {
+      listEl.appendChild(itemCard(entry.item, entry.detail));
+    });
+  }
+
+  async function loadCart() {
+    try {
+      if (isGuestFlow) {
+        const items = await guestFetch('/cart');
+        await renderCart(items);
+        return;
+      }
+
+      if (authToken) {
+        const payload = await apiFetch('/cart/');
+        const items = Array.isArray(payload) ? payload : Array.isArray(payload.items) ? payload.items : [];
+        await renderCart(items);
+        return;
+      }
+
+      // Local fallback flow (no auth, no guest table session)
+      const localOrders = JSON.parse(localStorage.getItem('local_guest_orders') || '[]');
+      const items = localOrders.flatMap(function (order) { return order.items || []; });
+      await renderCart(items);
+    } catch (err) {
+      emptyEl.hidden = false;
+      listEl.hidden = true;
+      actionsEl.hidden = true;
+      loadingEl.hidden = true;
+      if (err && err.message) showToast(err.message, true);
+    }
+  }
+
+  async function finishOrder() {
+    const finishBtn = document.getElementById('finish-order-btn');
+    if (!finishBtn) return;
+
+    if (listEl.children.length === 0) {
+      showToast('Your order is empty.', true);
+      return;
+    }
+
+    finishBtn.disabled = true;
+    finishBtn.textContent = 'Sending...';
+
+    try {
+      if (isGuestFlow) {
+        await guestFetch('/orders', { method: 'POST' });
+      } else if (authToken) {
+        await apiFetch('/orders/', { method: 'POST' });
+      } else {
+        // Local fallback — nothing to send to a backend, just clear it
+        localStorage.removeItem('local_guest_orders');
+      }
+      showToast('Order sent to the waiter.');
+      window.location.reload();
+    } catch (err) {
+      showToast(err.message || 'Could not send the order.', true);
+      finishBtn.disabled = false;
+      finishBtn.textContent = 'Finish Order';
+    }
+  }
+
+  document.getElementById('finish-order-btn').addEventListener('click', finishOrder);
+  loadCart();
+})();
+</script>
+{% endblock %}

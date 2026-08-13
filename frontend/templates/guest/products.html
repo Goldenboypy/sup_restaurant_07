@@ -1,0 +1,200 @@
+{% extends "guest/base.html" %}
+{% load static %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'guest/css/products.css' %}">
+{% endblock %}
+
+{% block content %}
+<main class="products-page" id="main">
+  <header class="products-header">
+    <div>
+      <h1 class="page-title">Menu</h1>
+      <p class="page-subtitle">Tap a category and choose the item you want to order.</p>
+    </div>
+  </header>
+
+  {% if selected_category %}
+  <section class="category-panel" aria-label="Menu categories">
+    {% for category in categories %}
+    <a class="category-pill{% if selected_category and category.id == selected_category.id %} category-pill--active{% endif %}"
+       href="/menu/{{ category.slug }}/"
+       aria-current="{% if selected_category and category.id == selected_category.id %}page{% endif %}">
+      <span class="category-pill__icon">{{ category.icon }}</span>
+      <span class="category-pill__label">{{ category.name }}</span>
+    </a>
+    {% empty %}
+    <p class="empty-state">No categories available yet.</p>
+    {% endfor %}
+  </section>
+
+  <section class="category-summary">
+    <div>
+      <h2 class="section-title">{{ selected_category.name }}</h2>
+      <p class="section-subtitle">{{ selected_category.description|default:'A curated list of items for this category.' }}</p>
+    </div>
+    <div class="category-summary__meta">
+      <span>{{ products|length }} items</span>
+      <a class="section-link" href="/menu/">Back to categories</a>
+    </div>
+  </section>
+
+  <section class="products-section">
+    <div class="section-header">
+      <div>
+        <h2 class="section-title">{{ selected_category.name }}</h2>
+        <p class="section-subtitle">{{ selected_category.description|default:'Select an item to order.' }}</p>
+      </div>
+      <a class="section-link" href="/menu/">Back to all categories</a>
+    </div>
+
+    <div class="controls">
+      <label class="visually-hidden" for="product-search">Search products</label>
+      <input id="product-search" class="search" type="search" placeholder="Search {{ selected_category.name }}" autocomplete="off" />
+
+      <div class="controls-right">
+        <button id="toggleView" class="btn btn-outline toggle-view" type="button" aria-pressed="false">Grid view</button>
+        <label class="visually-hidden" for="sort">Sort products</label>
+        <select id="sort" class="sort" aria-label="Sort products">
+          <option value="">Sort by</option>
+          <option value="price-asc">Price: low to high</option>
+          <option value="price-desc">Price: high to low</option>
+        </select>
+      </div>
+    </div>
+
+    {% if products %}
+    <section id="products" class="product-grid" aria-live="polite" tabindex="-1">
+      {% for product in products %}
+      <article class="product-card" data-title="{{ product.name }}" data-price="{{ product.active_price|floatformat:0 }}">
+        <a class="product-link" href="/product/{{ product.id }}/" aria-labelledby="product-{{ product.id }}-title">
+          <div class="product-media">
+            {% if product.image_url %}
+              <img src="{{ product.image_url }}" alt="{{ product.name }}" loading="lazy" />
+            {% else %}
+              <div class="product-placeholder">{{ product.category.icon }}</div>
+            {% endif %}
+          </div>
+
+          <div class="product-body">
+            <div class="product-badge-row">
+              <span class="product-label">{{ product.category.name }}</span>
+              <span class="product-price">{{ product.active_price|floatformat:0 }} UZS</span>
+            </div>
+            <h2 id="product-{{ product.id }}-title" class="product-title">{{ product.name }}</h2>
+            <p class="product-excerpt">{{ product.description|truncatechars:80|default:'Tap to view product details and order.' }}</p>
+          </div>
+        </a>
+
+        <div class="product-footer">
+          <span class="product-meta">{{ product.category.name }}</span>
+          <a class="btn btn-primary" href="/product/{{ product.id }}/">Order</a>
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+    <p id="noResults" class="empty-state" hidden>No products match your search.</p>
+    {% else %}
+    <div class="empty-state">
+      <p>No products are available in this category right now.</p>
+      <p>Try another category or check back later.</p>
+    </div>
+    {% endif %}
+  </section>
+
+  {% else %}
+  <section class="category-grid" aria-label="Menu categories">
+    {% for category in categories %}
+    <a class="category-card" href="/menu/{{ category.slug }}/">
+      <div class="category-card__icon">{{ category.icon|default:'🍽️' }}</div>
+      <div class="category-card__name">{{ category.name }}</div>
+      <p class="category-card__meta">{{ category.description|default:'Browse dishes in this category.' }}</p>
+    </a>
+    {% endfor %}
+  </section>
+  {% endif %}
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    // Small, dependency-free enhancement: search + view toggle + simple sort stub
+    const searchInput = document.getElementById('product-search');
+    const productsEl = document.getElementById('products');
+    const toggleBtn = document.getElementById('toggleView');
+    const sortSelect = document.getElementById('sort');
+    const noResults = document.getElementById('noResults');
+
+    if (!productsEl) return;
+
+    // debounce helper
+    function debounce(fn, wait) {
+      let t;
+      return function (...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+      };
+    }
+
+    function updateNoResults() {
+      const anyVisible = productsEl.querySelectorAll('.product-card:not([hidden])').length > 0;
+      noResults.hidden = anyVisible;
+    }
+
+    function filterProducts(term) {
+      term = (term || '').trim().toLowerCase();
+      const cards = productsEl.querySelectorAll('.product-card');
+      cards.forEach(card => {
+        const title = (card.dataset.title || '').toLowerCase();
+        const excerpt = (card.querySelector('.product-excerpt')?.textContent || '').toLowerCase();
+        const match = !term || title.includes(term) || excerpt.includes(term);
+        card.hidden = !match;
+      });
+      updateNoResults();
+    }
+
+    const debouncedFilter = debounce(e => filterProducts(e.target.value), 180);
+
+    if (searchInput) searchInput.addEventListener('input', debouncedFilter);
+
+    if (toggleBtn) toggleBtn.addEventListener('click', () => {
+      const isList = productsEl.classList.toggle('list-view');
+      toggleBtn.setAttribute('aria-pressed', isList ? 'true' : 'false');
+      toggleBtn.textContent = isList ? 'List view' : 'Grid view';
+    });
+
+    // Minimal sort: reorder DOM by numeric data-price
+    if (sortSelect) sortSelect.addEventListener('change', () => {
+      const cards = Array.from(productsEl.querySelectorAll('.product-card'));
+      const value = sortSelect.value;
+      if (value === 'price-asc' || value === 'price-desc') {
+        cards.sort((a, b) => {
+          const pa = parseFloat(a.dataset.price || '0');
+          const pb = parseFloat(b.dataset.price || '0');
+          return value === 'price-asc' ? pa - pb : pb - pa;
+        });
+      } else {
+        // default: keep server order (no-op)
+        return;
+      }
+      // reattach in new order
+      cards.forEach(c => productsEl.appendChild(c));
+    });
+
+    // keyboard: press Enter on a focused card opens the product (for non-anchor areas)
+    productsEl?.addEventListener('keydown', (e) => {
+      const card = e.target.closest('.product-card');
+      if (!card) return;
+      if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
+        const link = card.querySelector('.product-link');
+        if (link) link.click();
+      }
+    });
+  })();
+</script>
+{% endblock %}
+
+
+
+

@@ -1,0 +1,218 @@
+.orders-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.orders-header {
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-5);
+  border-bottom: 2px solid var(--color-border);
+}
+
+.orders-header__eyebrow {
+  margin: 0 0 var(--space-1) 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.orders-header__title {
+  margin: 0 0 var(--space-2) 0;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.orders-header__sub {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+}
+
+.orders-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.receipt-skeleton {
+  height: 120px;
+  background: linear-gradient(90deg, var(--color-surface), var(--color-bg), var(--color-surface));
+  background-size: 200% 100%;
+  border-radius: var(--radius-md);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.orders-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.1rem;
+}
+
+.order-line {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 0.9rem;
+  padding: 0.9rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.order-line__image,
+.order-line__image-placeholder {
+  width: 100%;
+  height: 210px;
+  object-fit: cover;
+  border-radius: 14px;
+  display: block;
+  background: var(--color-bg);
+}
+
+.order-line__meta {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.order-line__top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.order-line__name {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--color-text);
+}
+
+.order-line__price {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+.order-line__qty {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.order-line__exclusions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.order-line__exclusions li {
+  display: inline-flex;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  background: #fff1ee;
+  color: var(--color-danger);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.orders-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.orders-actions > * {
+  flex: 1;
+}
+
+.btn-primary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.btn-primary,
+.btn--primary {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  border: 1px solid var(--color-primary);
+}
+
+.btn-secondary,
+.btn--secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.empty-state {
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.empty-state__title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.empty-state__body {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-text);
+  color: var(--color-text-inverse);
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+}
+
+.toast--error {
+  background: var(--color-danger);
+}
+
+@media (max-width: 640px) {
+  .orders-page {
+    padding: var(--space-3);
+  }
+
+  .orders-actions {
+    flex-direction: column;
+  }
+}

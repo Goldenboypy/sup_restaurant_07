@@ -1,0 +1,42 @@
+{% extends "guest/base.html" %}
+{% load static %}
+
+{% block title %}Configure {{ product.name }} | Restaurant{% endblock %}
+
+{% block content %}
+<main class="configure-page" style="padding: 2rem 1rem 4rem; max-width: 720px; margin: 0 auto;">
+  <nav class="breadcrumb" aria-label="Breadcrumb" style="display:flex; gap:.5rem; flex-wrap:wrap; font-size:.9rem; color:#6B7A70; margin-bottom:1.5rem;">
+    <a href="/menu/">Menu</a>
+    <span aria-hidden="true">/</span>
+    <a href="/product/{{ product.id }}/">{{ product.name }}</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">Configure</span>
+  </nav>
+
+  <header style="margin-bottom:1.5rem;">
+    <h1 style="font-size:clamp(1.8rem, 2.2vw, 2.6rem); margin:0 0 .5rem;">Customize your order</h1>
+    <p style="color:#4B5563; margin:0;">Select any ingredients you'd like removed from this item before adding it to your cart.</p>
+  </header>
+
+  <form method="post" action="" id="configure-form">
+    {% csrf_token %}
+    <div style="background:#fff; border:1px solid #E5E7EB; border-radius:20px; padding:1.25rem 1.35rem; box-shadow:0 16px 40px rgba(15,23,42,0.08);">
+      {% if ingredients %}
+        {% for ingredient in ingredients %}
+        <label style="display:flex; align-items:center; gap:0.85rem; padding:0.85rem 0; border-bottom:1px solid #F3F4F6; font-size:0.96rem; color:#111827;">
+          <input type="checkbox" name="exclude_ingredient" value="{{ ingredient }}">
+          <span>No {{ ingredient }}</span>
+        </label>
+        {% endfor %}
+      {% else %}
+        <p style="color:#6B7A70; margin:0;">There are no configurable ingredients listed for this product.</p>
+      {% endif %}
+    </div>
+
+    <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1.5rem;">
+      <a class="btn btn-secondary" href="/product/{{ product.id }}/">Back to product</a>
+      <button type="submit" class="btn btn-primary">Add to cart</button>
+    </div>
+  </form>
+</main>
+{% endblock %}

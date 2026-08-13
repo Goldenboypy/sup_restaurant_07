@@ -1,0 +1,30 @@
+{% extends "staff/base.html" %}
+{% block title %}Payment requests{% endblock %}
+{% block nav_payments %}active{% endblock %}
+{% block content %}
+<h1>Payment requests</h1>
+<p class="muted" style="margin-bottom:1.5rem;">Tables waiting to be paid and cleared.</p>
+
+{% if payment_requests %}
+<div style="display:flex; flex-direction:column; gap:.9rem;">
+  {% for pr in payment_requests %}
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.75rem;">
+    <div>
+      <p style="margin:0 0 .3rem; font-weight:700;">Table {{ pr.session.table.number }}</p>
+      <p class="muted" style="margin:0;">
+        Method: {{ pr.get_method_display|default:pr.method }} · Requested {{ pr.requested_at }}
+      </p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="complete_payment">
+      <input type="hidden" name="request_id" value="{{ pr.id }}">
+      <button type="submit" class="btn btn-success">Mark paid &amp; clear table</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">No tables currently waiting to pay.</div>
+{% endif %}
+{% endblock %}

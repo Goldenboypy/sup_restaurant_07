@@ -1,0 +1,171 @@
+/* ==========================================================================
+   guest/bill.css
+   Styles for bill.html -- Step 7 of the guest flow.
+   [ Pay ] only becomes active once the waiter marks the most recent order
+   as SERVED. Tapping [ Pay ] is the FIRST time any price is shown
+   (GET /api/guest/bill returns 403 until payment is requested).
+   Depends on base.css (.card, .btn, .empty-state, .bottom-bar).
+   ========================================================================== */
+
+.bill {
+  padding-top: var(--space-5);
+  padding-bottom: calc(var(--bottom-nav-height) + var(--space-8));
+}
+
+.bill__heading {
+  font-size: 1.4rem;
+  margin-bottom: var(--space-5);
+}
+
+/* ---- Locked state: shown while status = hidden (before guest taps Pay) ---- */
+.bill--locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.bill--locked__icon {
+  width: 48px;
+  height: 48px;
+  opacity: 0.5;
+}
+
+.bill--locked__title {
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+
+.bill--locked__hint {
+  max-width: 32ch;
+  font-size: 0.875rem;
+}
+
+/* Waiting-on-order state: order exists but not yet served */
+.bill-wait-list {
+  width: 100%;
+  margin-top: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ---- Itemized summary: revealed ONLY after [ Pay ] is tapped ---- */
+.bill-summary {
+  padding: var(--space-4);
+}
+
+.bill-summary__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  font-size: 0.9rem;
+}
+
+.bill-summary__row + .bill-summary__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.bill-summary__item-name {
+  color: var(--color-text);
+}
+
+.bill-summary__item-exclusions {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.bill-summary__item-price {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bill-summary__total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 2px solid var(--color-text);
+}
+
+.bill-summary__total-label {
+  font-weight: 700;
+}
+
+.bill-summary__total-value {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Payment method picker: Card / Cash ---- */
+.payment-method-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.payment-method-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.payment-method-option__icon {
+  width: 28px;
+  height: 28px;
+}
+
+.payment-method-option__label {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.payment-method-option[aria-pressed="true"],
+.payment-method-option.is-selected {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+}
+
+/* ---- Post-payment-request state ---- */
+.bill--requested {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.bill--requested__icon {
+  width: 44px;
+  height: 44px;
+  color: var(--color-success);
+}
+
+.bill--requested__title {
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+
+/* [ Pay ] lives in the fixed .bottom-bar from base.css; disabled until served */
+.bill__pay-btn:disabled {
+  background: var(--color-border);
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,91 @@
+/* ==========================================================================
+   guest/categories.css
+   Styles for categories.html -- Step 2 of the guest flow.
+   Breakfast | Lunch | Dinner | Offers | Desserts | Soups | Drinks
+   Tapping a card navigates to products.html for that category.
+   Depends on base.css (.card, .page). Loaded after base.css.
+   ========================================================================== */
+
+.categories {
+  padding-top: var(--space-5);
+  padding-bottom: var(--space-8);
+}
+
+.categories__heading {
+  font-size: 1.4rem;
+  margin-bottom: var(--space-5);
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+@media (min-width: 480px) {
+  .category-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.category-card {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.category-card:active {
+  transform: scale(0.97);
+}
+
+.category-card__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.category-card__image.skeleton {
+  position: absolute;
+  inset: 0;
+}
+
+.category-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(31, 27, 22, 0) 40%, rgba(31, 27, 22, 0.65) 100%);
+}
+
+.category-card__label {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-3);
+  color: var(--color-text-inverse);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* Item count per category, shown under the label */
+.category-card__count {
+  position: relative;
+  z-index: 1;
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+/* Special highlight treatment for the "Offers" category card */
+.category-card--offers {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

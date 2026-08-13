@@ -1,0 +1,13 @@
+FROM node:20-slim
+
+WORKDIR /frontend
+
+# Copy package files first for layer caching
+COPY guest-app/package*.json ./
+RUN npm install
+
+# Rest of the source is bind-mounted in docker-compose.yml for live reload,
+# so we don't COPY the full source here — just enough to start.
+EXPOSE 5173
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

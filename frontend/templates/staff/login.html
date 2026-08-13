@@ -1,0 +1,31 @@
+{% extends "staff/base.html" %}
+{% block title %}Log in{% endblock %}
+{% block content %}
+<div style="max-width:380px; margin:3rem auto 0;">
+  <div class="card">
+    <h1 style="font-size:1.3rem;">Staff log in</h1>
+    <p class="muted" style="margin-bottom:1.25rem;">Waiter and kitchen access only.</p>
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-error">
+        {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'staff-login' %}" novalidate>
+      {% csrf_token %}
+      <div style="margin-bottom:1rem;">
+        <label for="id_username" style="display:block; font-size:.85rem; font-weight:600; margin-bottom:.3rem;">Username</label>
+        <input type="text" id="id_username" name="username" autocomplete="username" required
+               style="width:100%; padding:.6rem .7rem; border:1px solid var(--border); border-radius:8px; font-size:.95rem;">
+      </div>
+      <div style="margin-bottom:1.4rem;">
+        <label for="id_password" style="display:block; font-size:.85rem; font-weight:600; margin-bottom:.3rem;">Password</label>
+        <input type="password" id="id_password" name="password" autocomplete="current-password" required
+               style="width:100%; padding:.6rem .7rem; border:1px solid var(--border); border-radius:8px; font-size:.95rem;">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;">Log in</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

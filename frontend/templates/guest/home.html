@@ -1,0 +1,647 @@
+{% extends "guest/base.html" %}
+
+{% block title %}
+  Home | Restaurant
+{% endblock %}
+
+{% block head_extra %}
+  <!-- Additional meta tags or head content for the home page -->
+  <meta name="description" content="Fresh groceries delivered in 15 minutes across Uzbekistan.">
+{% endblock %}
+
+{% block head_styles %}
+/* ════════════════════════════════════════════════════════════════════
+   HOME PAGE STYLES
+════════════════════════════════════════════════════════════════════ */
+
+/* ── Hero ──────────────────────────────────────────────────────── */
+.hero {
+  background: linear-gradient(135deg, var(--green-dark) 0%, #1a6b3a 55%, var(--green) 100%);
+  color: var(--white);
+  padding: 5rem 1.25rem 4.5rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"  );
+}
+
+.hero__inner {
+  position: relative;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.hero__badge {
+  display: inline-block;
+  background: rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 50px;
+  font-size: .8rem;
+  font-weight: 700;
+  padding: .35rem 1rem;
+  margin-bottom: 1.25rem;
+  letter-spacing: .3px;
+}
+
+.hero__title {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 900;
+  line-height: 1.12;
+  margin-bottom: 1rem;
+  letter-spacing: -.5px;
+}
+
+.hero__title span { color: var(--green-mid); }
+
+.hero__sub {
+  font-size: 1.05rem;
+  color: #d1fae5;
+  line-height: 1.6;
+  margin-bottom: 2.25rem;
+}
+
+.hero__cta {
+  display: flex;
+  gap: .85rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-hero-primary {
+  background: var(--white);
+  color: var(--green-dark);
+  font-weight: 800;
+  font-size: 1rem;
+  padding: .8rem 2rem;
+  border-radius: 50px;
+  border: none;
+  cursor: pointer;
+  transition: transform var(--transition), box-shadow var(--transition);
+  box-shadow: 0 4px 15px rgba(0,0,0,.2);
+}
+.btn-hero-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,.25); }
+
+.btn-hero-outline {
+  background: transparent;
+  color: var(--white);
+  font-weight: 700;
+  font-size: 1rem;
+  padding: .8rem 2rem;
+  border-radius: 50px;
+  border: 2px solid rgba(255,255,255,.5);
+  text-decoration: none;
+  transition: border-color var(--transition), background var(--transition);
+}
+.btn-hero-outline:hover { border-color: var(--white); background: rgba(255,255,255,.1); }
+
+/* ── Stats bar ──────────────────────────────────────────────────── */
+.stats-bar {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.stat-item {
+  padding: 1.1rem 2rem;
+  text-align: center;
+  border-right: 1px solid var(--border);
+}
+.stat-item:last-child { border-right: none; }
+
+.stat-item__number {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--green);
+  line-height: 1;
+}
+
+.stat-item__label {
+  font-size: .75rem;
+  color: var(--gray-500);
+  margin-top: .2rem;
+  font-weight: 500;
+}
+
+/* ── Section ────────────────────────────────────────────────────── */
+.section {
+  padding: 2.75rem 0;
+}
+
+.section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  gap: 1rem;
+}
+
+.section__title {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: var(--green-dark);
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.section__link {
+  font-size: .85rem;
+  color: var(--green);
+  font-weight: 700;
+  transition: color var(--transition);
+  white-space: nowrap;
+}
+.section__link:hover { color: var(--green-dark); text-decoration: underline; }
+
+/* ── Category chips ─────────────────────────────────────────────── */
+.category-scroll {
+  display: flex;
+  gap: .6rem;
+  overflow-x: auto;
+  padding-bottom: .5rem;
+  scrollbar-width: none;
+}
+.category-scroll::-webkit-scrollbar { display: none; }
+
+.category-chip {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 50px;
+  padding: .5rem 1.1rem;
+  font-size: .875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), transform var(--transition);
+  color: var(--gray-900);
+  flex-shrink: 0;
+}
+.category-chip:hover {
+  background: var(--green-light);
+  border-color: var(--green);
+  color: var(--green-dark);
+  transform: translateY(-1px);
+}
+
+/* ── Product grid ───────────────────────────────────────────────── */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+  gap: 1.1rem;
+}
+
+.product-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: box-shadow var(--transition), transform var(--transition);
+  cursor: pointer;
+}
+.product-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
+}
+
+.product-card__img {
+  position: relative;
+  height: 130px;
+  background: var(--green-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3.5rem;
+  overflow: hidden;
+}
+.product-card__img img { width: 100%; height: 100%; object-fit: cover; }
+
+.badge-discount {
+  position: absolute;
+  top: 8px; left: 8px;
+  background: var(--red);
+  color: var(--white);
+  font-size: .68rem;
+  font-weight: 800;
+  padding: .2rem .5rem;
+  border-radius: 4px;
+  letter-spacing: .3px;
+}
+
+.badge-halal {
+  position: absolute;
+  top: 8px; right: 8px;
+  background: var(--green);
+  color: var(--white);
+  font-size: .65rem;
+  font-weight: 800;
+  padding: .2rem .45rem;
+  border-radius: 4px;
+}
+
+.product-card__body { padding: .85rem; }
+
+.product-card__category {
+  font-size: .7rem;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: .2rem;
+}
+
+.product-card__name {
+  font-size: .92rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: .5rem;
+  color: var(--gray-900);
+  /* clamp to 2 lines */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.product-card__price {
+  display: flex;
+  align-items: baseline;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+
+.price-current {
+  font-size: 1.02rem;
+  font-weight: 900;
+  color: var(--green-dark);
+}
+
+.price-old {
+  font-size: .78rem;
+  color: var(--gray-400);
+  text-decoration: line-through;
+}
+
+.product-card__add {
+  margin-top: .7rem;
+  width: 100%;
+  padding: .5rem;
+  background: var(--green);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: .85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.product-card__add:hover   { background: var(--green-dark); }
+.product-card__add:active  { transform: scale(.97); }
+
+/* ── Loyalty banner ─────────────────────────────────────────────── */
+.loyalty-banner {
+  background: linear-gradient(120deg, var(--green-dark), var(--green));
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 2rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2rem;
+  align-items: center;
+  color: var(--white);
+  margin: 1rem 0;
+}
+
+@media (max-width: 600px) {
+  .loyalty-banner { grid-template-columns: 1fr; }
+}
+
+.loyalty-banner__title {
+  font-size: 1.4rem;
+  font-weight: 900;
+  margin-bottom: .4rem;
+}
+
+.loyalty-banner__sub {
+  font-size: .9rem;
+  color: #d1fae5;
+  margin-bottom: 1.25rem;
+  line-height: 1.5;
+}
+
+.loyalty-tiers {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.loyalty-tier {
+  background: rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 8px;
+  padding: .5rem .9rem;
+  text-align: center;
+  min-width: 90px;
+}
+.loyalty-tier__pct  { font-size: 1.3rem; font-weight: 900; }
+.loyalty-tier__label{ font-size: .7rem;  color: #d1fae5; margin-top: .1rem; }
+
+.loyalty-banner__cta {
+  background: var(--white);
+  color: var(--green-dark);
+  font-weight: 800;
+  font-size: .95rem;
+  padding: .75rem 1.75rem;
+  border-radius: 50px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform var(--transition), box-shadow var(--transition);
+  display: inline-block;
+}
+.loyalty-banner__cta:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+
+/* ── Branches strip ─────────────────────────────────────────────── */
+.branches-strip {
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 1.1rem 0;
+  margin: 1rem 0;
+}
+
+.branches-inner {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.branches-label {
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  white-space: nowrap;
+}
+
+.branch-pill {
+  background: var(--green-light);
+  color: var(--green-dark);
+  font-size: .8rem;
+  font-weight: 600;
+  padding: .3rem .8rem;
+  border-radius: 50px;
+  white-space: nowrap;
+}
+
+/* ── Section divider ────────────────────────────────────────────── */
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+
+/* ── Empty state ────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: var(--gray-400);
+  font-size: .9rem;
+}
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     1. HERO
+════════════════════════════════════════════════════════════════════════ -->
+<section class="hero" aria-label="Hero">
+  <div class="hero__inner">
+    <div class="hero__badge">🇺🇿 Serving Uzbekistan · Free delivery over 100,000 UZS</div>
+    <h1 class="hero__title">
+      Fresh groceries,  
+
+      <span>delivered in 15 minutes</span>
+    </h1>
+    <p class="hero__sub">
+      {{ product_count }}+ products across {{ categories|length }} categories.
+      Halal certified. Loyalty cashback on every order.
+    </p>
+    <div class="hero__cta">
+      <button class="btn-hero-primary" onclick="window.location.href='/menu/'">
+        Browse Products
+      </button>
+      <a class="btn-hero-outline" href="#categories">Browse Categories</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     2. STATS BAR
+════════════════════════════════════════════════════════════════════════ -->
+<div class="stats-bar" aria-label="Store stats">
+  <div class="stat-item">
+    <div class="stat-item__number">{{ product_count }}+</div>
+    <div class="stat-item__label">Products</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-item__number">{{ categories|length }}</div>
+    <div class="stat-item__label">Categories</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-item__number">{{ branch_count }}</div>
+    <div class="stat-item__label">Store Locations</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-item__number">15 min</div>
+    <div class="stat-item__label">Avg. Delivery</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-item__number">1–5%</div>
+    <div class="stat-item__label">Loyalty Cashback</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     3. CATEGORIES
+════════════════════════════════════════════════════════════════════════ -->
+<div class="section" id="categories">
+  <div class="container">
+    <div class="section__header">
+      <h2 class="section__title">Browse by Category</h2>
+      <a class="section__link" href="/menu/">View all →</a>
+    </div>
+    <div class="category-scroll" role="list">
+      {% for cat in categories %}
+      <a class="category-chip"
+         href="/menu/{{ cat.slug }}/"
+         role="listitem"
+         title="{{ cat.description }}">
+        {{ cat.icon }} {{ cat.name }}
+      </a>
+      {% empty %}
+      <p class="empty-state">No categories yet.</p>
+      {% endfor %}
+  </div>
+</div>
+
+<hr class="section-divider"/>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     4. ON SALE
+════════════════════════════════════════════════════════════════════════ -->
+{% if discounted_products %}
+<div class="section" id="sale">
+  <div class="container">
+    <div class="section__header">
+      <h2 class="section__title">🔥 On Sale</h2>
+      <a class="section__link" href="/menu/?has_discount=true">See all deals →</a>
+    </div>
+    <div class="product-grid">
+      {% for p in discounted_products %}
+      <article class="product-card" onclick="window.location.href='/product/{{ p.id }}/'">
+        <div class="product-card__img">
+          {% if p.image_url %}
+            <img src="{{ p.image_url }}" alt="{{ p.name }}" loading="lazy"/>
+          {% else %}
+            {{ p.category.icon }}
+          {% endif %}
+          <span class="badge-discount">-{{ p.discount_percent }}%</span>
+          {% if p.is_halal %}<span class="badge-halal">HALAL</span>{% endif %}
+        </div>
+        <div class="product-card__body">
+          <div class="product-card__category">{{ p.category.name }}</div>
+          <div class="product-card__name">{{ p.name }}</div>
+          <div class="product-card__price">
+            <span class="price-current">{{ p.active_price|floatformat:0 }} UZS</span>
+            <span class="price-old">{{ p.price|floatformat:0 }}</span>
+          </div>
+          <a class="product-card__add btn-primary" href="/product/{{ p.id }}/">
+            Order
+          </a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<hr class="section-divider"/>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     5. FEATURED PRODUCTS
+════════════════════════════════════════════════════════════════════════ -->
+<div class="section" id="featured">
+  <div class="container">
+    <div class="section__header">
+      <h2 class="section__title">⭐ Featured Products</h2>
+      <a class="section__link" href="/menu/?is_featured=true">See all →</a>
+    </div>
+    {% if featured_products %}
+    <div class="product-grid">
+      {% for p in featured_products %}
+      <article class="product-card" onclick="window.location.href='/product/{{ p.id }}/'">
+        <div class="product-card__img">
+          {% if p.image_url %}
+            <img src="{{ p.image_url }}" alt="{{ p.name }}" loading="lazy"/>
+          {% else %}
+            {{ p.category.icon }}
+          {% endif %}
+          {% if p.discount_price %}
+            <span class="badge-discount">-{{ p.discount_percent }}%</span>
+          {% endif %}
+          {% if p.is_halal %}
+            <span class="badge-halal">HALAL</span>
+          {% endif %}
+        </div>
+        <div class="product-card__body">
+          <div class="product-card__category">{{ p.category.name }}</div>
+          <div class="product-card__name">{{ p.name }}</div>
+          <div class="product-card__price">
+            <span class="price-current">{{ p.active_price|floatformat:0 }} UZS</span>
+            {% if p.discount_price %}
+              <span class="price-old">{{ p.price|floatformat:0 }}</span>
+            {% endif %}
+          </div>
+          <a class="product-card__add btn-primary" href="/product/{{ p.id }}/">
+            Order
+          </a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">
+      No featured products yet.
+      Run <code>python seed_data.py</code> to load demo data.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<hr class="section-divider"/>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     6. LOYALTY CASHBACK BANNER
+════════════════════════════════════════════════════════════════════════ -->
+<div class="container" style="padding-top:2rem;padding-bottom:2rem;">
+  <div class="loyalty-banner" aria-label="Loyalty programme">
+    <div>
+      <div class="loyalty-banner__title">💳 Earn Cashback on Every Order</div>
+      <div class="loyalty-banner__sub">
+        Create a free account and start earning bonus points automatically.
+        The more you spend, the higher your cashback tier.
+      </div>
+      <div class="loyalty-tiers">
+        <div class="loyalty-tier">
+          <div class="loyalty-tier__pct">1%</div>
+          <div class="loyalty-tier__label">From day one</div>
+        </div>
+        <div class="loyalty-tier">
+          <div class="loyalty-tier__pct">3%</div>
+          <div class="loyalty-tier__label">After 1.3M UZS spent</div>
+        </div>
+        <div class="loyalty-tier">
+          <div class="loyalty-tier__pct">5%</div>
+          <div class="loyalty-tier__label">After 5M UZS spent</div>
+        </div>
+      </div>
+    </div>
+    <a class="loyalty-banner__cta" href="/login/#register">
+      Join Free →
+    </a>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     7. BRANCHES STRIP
+════════════════════════════════════════════════════════════════════════ -->
+<div class="branches-strip" aria-label="Store locations">
+  <div class="container">
+    <div class="branches-inner">
+      <span class="branches-label">📍 Our {{ branch_count }} locations:</span>
+      <span class="branch-pill">Tashkent</span>
+      <span class="branch-pill">Samarkand</span>
+      <span class="branch-pill">Bukhara</span>
+      <span class="branch-pill">Namangan</span>
+      <span class="branch-pill">Andijan</span>
+      <span class="branch-pill">Fergana</span>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}{% endblock %}

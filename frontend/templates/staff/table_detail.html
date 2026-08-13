@@ -1,0 +1,66 @@
+{% extends "staff/base.html" %}
+{% block title %}Table {{ table.number }}{% endblock %}
+{% block nav_tables %}active{% endblock %}
+{% block content %}
+<p><a href="{% url 'staff-table-map' %}">&larr; Back to table map</a></p>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:.75rem;">
+  <h1 style="margin:0;">Table {{ table.number }}</h1>
+  <span class="status-badge status-{{ table.status }}">{{ table.get_status_display|default:table.status }}</span>
+</div>
+
+<div style="display:grid; grid-template-columns:1.3fr 1fr; gap:1.25rem;">
+  <div class="card">
+    <h3>Assignment &amp; status</h3>
+    <p class="muted">
+      Assigned waiter:
+      {% if table.assigned_waiter %}{{ table.assigned_waiter.name }}{% else %}none{% endif %}
+    </p>
+    <form method="post" style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.75rem;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="assign_self">
+      <button type="submit" class="btn btn-primary">Assign myself to this table</button>
+    </form>
+
+    <form method="post" style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.6rem;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="set_status">
+      <input type="hidden" name="status" value="occupied">
+      <button type="submit" class="btn btn-outline">Mark occupied</button>
+    </form>
+    <form method="post" style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.6rem;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="set_status">
+      <input type="hidden" name="status" value="free">
+      <button type="submit" class="btn btn-outline">Mark free</button>
+    </form>
+
+    <h3 style="margin-top:1.5rem;">Orders awaiting confirmation</h3>
+    {% if pending_orders %}
+      {% for order in pending_orders %}
+        <div style="border-top:1px solid var(--border); padding:.75rem 0;">
+          <p style="margin:0 0 .4rem; font-weight:600;">Order #{{ order.id }}</p>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="confirm_order">
+            <input type="hidden" name="order_id" value="{{ order.id }}">
+            <button type="submit" class="btn btn-success">Confirm order</button>
+          </form>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">No orders waiting on confirmation.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Table QR code</h3>
+    {% if table.qr_image_url %}
+      <img src="{{ table.qr_image_url }}" alt="QR code for table {{ table.number }}" style="width:100%; max-width:220px; border:1px solid var(--border); border-radius:8px;">
+      <p class="muted" style="margin-top:.75rem;">Show this to a newly seated guest. Scanning opens their menu for this table.</p>
+    {% else %}
+      <p class="muted">No QR code generated for this table.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

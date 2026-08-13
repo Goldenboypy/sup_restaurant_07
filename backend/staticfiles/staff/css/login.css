@@ -1,0 +1,101 @@
+/* ==========================================================================
+   staff/login.css
+   Styles for login.html. Staff App is authenticated (Bearer token,
+   same auth.py pattern as v1.0). No side-nav / header chrome here --
+   this page renders standalone, before AuthContext has a token.
+   Depends on base.css (tokens, .btn, .card). Loaded after base.css.
+   ========================================================================== */
+
+.login {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: linear-gradient(160deg, var(--color-bg), #e9edf4);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.login-card__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.login-card__logo {
+  width: 44px;
+  height: 44px;
+}
+
+.login-card__title {
+  font-size: 1.2rem;
+}
+
+.login-card__subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.form-field label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.form-field input {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 0.95rem;
+}
+
+.form-field input:focus-visible {
+  border-color: var(--color-primary);
+}
+
+.form-field--invalid input {
+  border-color: var(--color-danger);
+}
+
+.form-field__error {
+  font-size: 0.75rem;
+  color: var(--color-danger);
+}
+
+.login-form__error {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-danger) 30%, var(--color-border));
+  color: var(--color-danger);
+  font-size: 0.85rem;
+}
+
+.login-card__footer {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
