@@ -286,35 +286,33 @@ async function getItemDetail(itemId, fallback) {
     }
   }
 
-  async function finishOrder() {
-    const finishBtn = document.getElementById('finish-order-btn');
-    if (!finishBtn) return;
+ async function finishOrder() {
+  const finishBtn = document.getElementById('finish-order-btn');
+  if (!finishBtn) return;
 
-    if (listEl.children.length === 0) {
-      showToast('Your order is empty.', true);
-      return;
-    }
-
-    finishBtn.disabled = true;
-    finishBtn.textContent = 'Sending...';
-
-    try {
-      if (isGuestFlow) {
-        await guestFetch('/orders', { method: 'POST' });
-      } else if (authToken) {
-        await apiFetch('/orders/', { method: 'POST' });
-      } else {
-        // Local fallback — nothing to send to a backend, just clear it
-        localStorage.removeItem('local_guest_orders');
-      }
-      showToast('Order sent to the waiter.');
-      window.location.reload();
-    } catch (err) {
-      showToast(err.message || 'Could not send the order.', true);
-      finishBtn.disabled = false;
-      finishBtn.textContent = 'Finish Order';
-    }
+  if (listEl.children.length === 0) {
+    showToast('Your order is empty.', true);
+    return;
   }
+
+  finishBtn.disabled = true;
+  finishBtn.textContent = 'Sending...';
+
+  try {
+    if (isGuestFlow) {
+      await guestFetch('/orders', { method: 'POST' });
+    } else if (authToken) {
+      await apiFetch('/orders/', { method: 'POST' });
+    } else {
+      localStorage.removeItem('local_guest_orders');
+    }
+    window.location.href = '/order-confirmed/';
+  } catch (err) {
+    showToast(err.message || 'Could not send the order.', true);
+    finishBtn.disabled = false;
+    finishBtn.textContent = 'Finish Order';
+  }
+}
 
   document.getElementById('finish-order-btn').addEventListener('click', finishOrder);
   loadCart();

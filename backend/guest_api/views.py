@@ -169,3 +169,6 @@ def orders_view(request: HttpRequest):
             pass
 
     return render(request, "guest/orders.html", context)
+
+def order_confirmed_view(request: HttpRequest):
+    return render(request, "guest/order_confirmed.html", {"page": "order_confirmed"})

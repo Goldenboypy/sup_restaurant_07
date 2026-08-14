@@ -1,0 +1,51 @@
+.confirm-page {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.confirm-card {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  padding: var(--space-8) var(--space-5);
+}
+
+.confirm-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto var(--space-4);
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-size: 2rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-title {
+  margin: 0 0 var(--space-3);
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.confirm-body {
+  margin: 0 0 var(--space-6);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.confirm-home-btn {
+  min-height: 52px;
+  padding: 0.95rem 2rem;
+  font-size: 1rem;
+}

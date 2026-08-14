@@ -1,0 +1,19 @@
+{% extends "guest/base.html" %}
+{% load static %}
+
+{% block title %}Order placed — Restaurant{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'guest/css/order_confirmed.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="confirm-page">
+  <div class="confirm-card">
+    <div class="confirm-icon" aria-hidden="true">✓</div>
+    <h1 class="confirm-title">Order placed!</h1>
+    <p class="confirm-body">Your order has been sent to the waiter. They'll confirm it shortly and get it started in the kitchen.</p>
+    <a class="btn btn--primary confirm-home-btn" href="/">Back to Home</a>
+  </div>
+</div>
+{% endblock %}

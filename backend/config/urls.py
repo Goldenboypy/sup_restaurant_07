@@ -31,6 +31,7 @@ from guest_api.views import (
     menu_view,
     cart_view,
     orders_view,
+    order_confirmed_view,
     category_view,
     product_detail_view,
     configure_order_view,
@@ -52,6 +53,7 @@ urlpatterns = [
     path("cart/", cart_view),
     path("orders/", orders_view),
     path("admin/", admin.site.urls),
+    path("order-confirmed/", order_confirmed_view),
     path("api/", api.urls),
     path("api/staff/", staff_api.urls),
 ]
