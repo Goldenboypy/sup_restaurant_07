@@ -58,15 +58,33 @@ MIDDLEWARE = [
 # Connects → config/urls.py
 # ---------------------------------------------------------------------------
 ROOT_URLCONF = "config.urls"
+LOGIN_URL = "/staff/login/"
 
 # ---------------------------------------------------------------------------
 # TEMPLATES  (needed for /admin/)
 # ---------------------------------------------------------------------------
+##TEMPLATES = [
+##    {
+#        "BACKEND": "django.template.backends.django.DjangoTemplates",
+#        "DIRS": [BASE_DIR.parent / "frontend" / "templates"],
+#        "APP_DIRS": True,
+#        "OPTIONS": {
+#            "context_processors": [
+#                "django.template.context_processors.debug",
+#                "django.template.context_processors.request",
+#                "django.contrib.auth.context_processors.auth",
+#                "django.contrib.messages.context_processors.messages",
+#            ],
+#        },
+#    },
+#]
+
+
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        # This points specifically to your frontend/templates folder
-        "DIRS": [BASE_DIR / "frontend" / "templates"], 
+        "DIRS": [BASE_DIR / "frontend" / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -78,7 +96,6 @@ TEMPLATES = [
         },
     },
 ]
-
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +170,10 @@ USE_TZ = True
 # ---------------------------------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# STATICFILES_DIRS = [BASE_DIR.parent / "frontend" / "static"]
+
 STATICFILES_DIRS = [BASE_DIR / "frontend" / "static"]
+
 VITE_DEV_SERVER_URL = "http://frontend:5173"
 
 # ---------------------------------------------------------------------------

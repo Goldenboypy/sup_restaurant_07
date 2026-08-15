@@ -24,7 +24,7 @@ class ViteProxyMiddleware:
             return False
         if path in {"/", "/index.html"}:
             return False
-        if path.startswith(("/api/", "/admin/", "/static/", "/ws/", "/media/")):
+        if path.startswith(("/api/", "/admin/", "/static/", "/ws/", "/media/", "/staff/", "/tables", "/kitchen", "/payment-requests")):
             return False
         if path.startswith(("/__", "/src/", "/@vite/", "/node_modules/")):
             return False

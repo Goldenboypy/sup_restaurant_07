@@ -16,6 +16,10 @@ from core.models import KitchenTicket, PaymentRequest, Table
 
 class StaffLoginView(LoginView):
     template_name = "staff/login.html"
+    redirect_authenticated_user = True
+
+    def get_success_url(self):
+        return "/tables/"
 
 
 @login_required

@@ -39,11 +39,16 @@ from guest_api.views import (
 
 from guest_api.api import api
 from staff_api.api import api as staff_api
+from staff_api.views import StaffLoginView, table_map, kitchen_board, payment_requests
 
 
 urlpatterns = [
     path("", home),
     path("login/", auth_view),
+    path("staff/login/", StaffLoginView.as_view(), name="staff-login"),
+    path("tables/", table_map, name="staff-table-map"),
+    path("kitchen/", kitchen_board, name="staff-kitchen"),
+    path("payment-requests/", payment_requests, name="staff-payment-requests"),
     path("shop/", menu_view),
     path("menu/", menu_view),
     path("menu/<slug:category_slug>/", category_view),
