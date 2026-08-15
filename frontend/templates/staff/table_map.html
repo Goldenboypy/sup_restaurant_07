@@ -15,7 +15,7 @@
     </div>
     <p class="muted" style="margin:0;">
       {% if table.assigned_waiter %}
-        Waiter: {{ table.assigned_waiter.name }}
+        Waiter: {{ table.assigned_waiter.display_name }}
       {% else %}
         Unassigned
       {% endif %}

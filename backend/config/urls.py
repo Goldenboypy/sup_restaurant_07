@@ -40,6 +40,7 @@ from guest_api.views import (
 from guest_api.api import api
 from staff_api.api import api as staff_api
 from staff_api.views import StaffLoginView, table_map, kitchen_board, payment_requests
+from staff_api.views import StaffLoginView, table_map, table_detail, kitchen_board, payment_requests
 
 
 urlpatterns = [
@@ -47,6 +48,7 @@ urlpatterns = [
     path("login/", auth_view),
     path("staff/login/", StaffLoginView.as_view(), name="staff-login"),
     path("tables/", table_map, name="staff-table-map"),
+    path("tables/<int:table_id>/", table_detail, name="staff-table-detail"),
     path("kitchen/", kitchen_board, name="staff-kitchen"),
     path("payment-requests/", payment_requests, name="staff-payment-requests"),
     path("shop/", menu_view),
@@ -62,6 +64,9 @@ urlpatterns = [
     path("api/", api.urls),
     path("api/staff/", staff_api.urls),
 ]
+
+
+
 
 if settings.DEBUG:
     urlpatterns += staticfiles_urlpatterns()
