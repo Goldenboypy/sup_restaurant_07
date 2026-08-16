@@ -172,3 +172,34 @@ def orders_view(request: HttpRequest):
 
 def order_confirmed_view(request: HttpRequest):
     return render(request, "guest/order_confirmed.html", {"page": "order_confirmed"})
+
+
+def home(request: HttpRequest):
+    context = {
+        "page":                "home",
+        "featured_products":   Product.objects.filter(is_featured=True, is_available=True).select_related("category")[:8],
+        "discounted_products": Product.objects.filter(discount_price__isnull=False, is_available=True).select_related("category")[:8],
+        "categories":          Category.objects.all(),
+        "branch_count":        Branch.objects.filter(is_active=True).count(),
+        "product_count":       Product.objects.filter(is_available=True).count(),
+    }
+
+    qr = request.GET.get("qr")
+    if qr:
+        try:
+            qr_uuid = UUID(qr)
+            table = Table.objects.filter(qr_token=qr_uuid).first()
+            if table:
+                session = (
+                    TableSession.objects
+                    .filter(table=table, status=TableSession.Status.ACTIVE)
+                    .order_by("-started_at")
+                    .first()
+                )
+                if session is None:
+                    session = TableSession.objects.create(table=table)
+                context["session_token"] = str(session.session_token)
+        except Exception:
+            pass
+
+    return render(request, "guest/home.html", context)

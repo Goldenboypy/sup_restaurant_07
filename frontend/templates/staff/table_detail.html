@@ -14,7 +14,7 @@
     <h3>Assignment &amp; status</h3>
     <p class="muted">
       Assigned waiter:
-      {% if table.assigned_waiter %}{{ table.assigned_waiter.name }}{% else %}none{% endif %}
+      {% if table.assigned_waiter %}{{ table.assigned_waiter.display_name }}{% else %}none{% endif %}
     </p>
     <form method="post" style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.75rem;">
       {% csrf_token %}
@@ -40,6 +40,11 @@
       {% for order in pending_orders %}
         <div style="border-top:1px solid var(--border); padding:.75rem 0;">
           <p style="margin:0 0 .4rem; font-weight:600;">Order #{{ order.id }}</p>
+          <ul style="margin:0 0 .5rem; padding-left:1.1rem;">
+            {% for item in order.items.all %}
+              <li>{{ item.quantity }}× {{ item.menu_item.name }}</li>
+            {% endfor %}
+          </ul>
           <form method="post">
             {% csrf_token %}
             <input type="hidden" name="action" value="confirm_order">

@@ -1,17 +1,14 @@
-"""Server-rendered fallback pages for the Staff App (`frontend/templates/staff/*`).
-
-These call the exact same core models as `staff_api/routers.py` so the
-React Staff App and this no-JS fallback never drift apart. Deliberately
-NOT wired into the WebSocket layer -- the fallback expects a manual
-page refresh instead of live notifications.
-"""
 from __future__ import annotations
+
+from datetime import datetime, timezone
+from urllib.parse import quote
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 
-from core.models import KitchenTicket, PaymentRequest, Table
+from core.models import KitchenTicket, PaymentRequest, RestaurantOrder, Table, TableSession
+from core.notifications import notify_kitchen
 
 
 class StaffLoginView(LoginView):
@@ -31,7 +28,58 @@ def table_map(request):
 @login_required
 def table_detail(request, table_id: int):
     table = get_object_or_404(Table, id=table_id)
-    return render(request, "staff/table_detail.html", {"table": table})
+    waiter = getattr(request.user, "waiter_profile", None)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        if action == "assign_self" and waiter is not None:
+            table.assigned_waiter = waiter
+            table.save(update_fields=["assigned_waiter"])
+
+        elif action == "set_status":
+            status = request.POST.get("status")
+            if status in Table.Status.values:
+                table.status = status
+                table.save(update_fields=["status"])
+
+        elif action == "confirm_order":
+            order_id = request.POST.get("order_id")
+            order = get_object_or_404(RestaurantOrder, id=order_id)
+            order.confirmed_by_waiter = True
+            order.confirmed_at = datetime.now(timezone.utc)
+            order.confirmed_by = waiter
+            order.status = RestaurantOrder.Status.WAITER_CONFIRMED
+            order.save(update_fields=["confirmed_by_waiter", "confirmed_at", "confirmed_by", "status"])
+
+            ticket = KitchenTicket.objects.create(order=order)
+            notify_kitchen({
+                "ticket_id": ticket.id,
+                "order_id": order.id,
+                "table_number": table.number,
+            })
+
+        return redirect("staff-table-detail", table_id=table.id)
+
+    guest_url = request.build_absolute_uri(f"/?qr={table.qr_token}")
+    qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={quote(guest_url)}"
+
+    pending_orders = (
+        RestaurantOrder.objects.filter(
+            session__table=table,
+            session__status=TableSession.Status.ACTIVE,
+            confirmed_by_waiter=False,
+        )
+        .select_related("session")
+        .prefetch_related("items__menu_item")
+    )
+
+    return render(request, "staff/table_detail.html", {
+        "table": table,
+        "qr_image_url": qr_image_url,
+        "guest_url": guest_url,
+        "pending_orders": pending_orders,
+    })
 
 
 @login_required
