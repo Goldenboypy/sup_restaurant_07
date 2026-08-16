@@ -59,13 +59,36 @@
   </div>
 
   <div class="card">
-    <h3>Table QR code</h3>
-    {% if table.qr_image_url %}
-      <img src="{{ table.qr_image_url }}" alt="QR code for table {{ table.number }}" style="width:100%; max-width:220px; border:1px solid var(--border); border-radius:8px;">
+  <h3>Table QR code</h3>
+  {% if qr_image_url %}
+    <button type="button" id="qr-toggle-btn" class="btn btn-primary">Open QR code</button>
+    <div id="qr-display" hidden style="margin-top:1rem; text-align:center;">
+      <img src="{{ qr_image_url }}" alt="QR code for table {{ table.number }}" style="width:100%; max-width:220px; border:1px solid var(--border); border-radius:8px;">
       <p class="muted" style="margin-top:.75rem;">Show this to a newly seated guest. Scanning opens their menu for this table.</p>
-    {% else %}
-      <p class="muted">No QR code generated for this table.</p>
-    {% endif %}
-  </div>
+      <button type="button" id="qr-close-btn" class="btn btn-outline" style="margin-top:.5rem;">Close QR code</button>
+    </div>
+  {% else %}
+    <p class="muted">No QR code available for this table.</p>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  const openBtn = document.getElementById('qr-toggle-btn');
+  const closeBtn = document.getElementById('qr-close-btn');
+  const display = document.getElementById('qr-display');
+  if (!openBtn || !closeBtn || !display) return;
+
+  openBtn.addEventListener('click', function () {
+    display.hidden = false;
+    openBtn.hidden = true;
+  });
+
+  closeBtn.addEventListener('click', function () {
+    display.hidden = true;
+    openBtn.hidden = false;
+  });
+})();
+</script>
 </div>
 {% endblock %}
