@@ -21,17 +21,31 @@ from core.models import Table, TableSession
 from django.http import HttpRequest
 from core.models import Product, Category, Branch, Cart, CartItem
 
+from staff_api.views import resolve_active_session_for_qr
 
 
 def home(request: HttpRequest):
-    return render(request, "guest/home.html", {
+    context = {
         "page":                "home",
-        "featured_products":   Product.objects.filter(is_featured=True,  is_available=True).select_related("category")[:8],
+        "featured_products":   Product.objects.filter(is_featured=True, is_available=True).select_related("category")[:8],
         "discounted_products": Product.objects.filter(discount_price__isnull=False, is_available=True).select_related("category")[:8],
         "categories":          Category.objects.all(),
         "branch_count":        Branch.objects.filter(is_active=True).count(),
         "product_count":       Product.objects.filter(is_available=True).count(),
-    })
+    }
+
+    qr = request.GET.get("qr")
+    if qr:
+        table, session = resolve_active_session_for_qr(qr)
+        if table and session:
+            context["session_token"] = str(session.session_token)
+        elif table and not session:
+            return render(request, "guest/table_closed.html", {
+                "page": "table_closed",
+                "table_number": table.number,
+            })
+
+    return render(request, "guest/home.html", context)
 
 
 def auth_view(request: HttpRequest):
@@ -92,28 +106,22 @@ def product_detail_view(request: HttpRequest, product_id: int):
         "category_name": product.category.name,
     }
 
-    # Optional: if the QR token is present in the query string (?qr=<token>),
-    # resolve the Table and ensure a TableSession exists so the rendered page
-    # can include a guest session token. This lets the client JS attach
-    # X-Table-Session and call /api/guest/* endpoints without returning 401.
+    # If the QR token is present in the query string (?qr=<token>), only
+    # attach a session if the table's ordering window is currently open
+    # (an ACTIVE TableSession already exists). Never auto-create one here —
+    # only staff can open ordering for a table (see table_detail's
+    # 'open_ordering' action). This stops a photographed/reused QR code
+    # from working outside a waiter-opened window.
     qr = request.GET.get("qr")
     if qr:
-        try:
-            qr_uuid = UUID(qr)
-            table = Table.objects.filter(qr_token=qr_uuid).first()
-            if table:
-                session = (
-                    TableSession.objects
-                    .filter(table=table, status=TableSession.Status.ACTIVE)
-                    .order_by("-started_at")
-                    .first()
-                )
-                if session is None:
-                    session = TableSession.objects.create(table=table)
-                context["session_token"] = str(session.session_token)
-        except Exception:
-            # Silently ignore malformed tokens or DB errors — page still loads.
-            pass
+        table, session = resolve_active_session_for_qr(qr)
+        if table and session:
+            context["session_token"] = str(session.session_token)
+        elif table and not session:
+            return render(request, "guest/table_closed.html", {
+                "page": "table_closed",
+                "table_number": table.number,
+            })
 
     return render(request, "guest/product_detail.html", context)
 
@@ -143,63 +151,23 @@ def configure_order_view(request: HttpRequest, product_id: int):
 def cart_view(request: HttpRequest):
     return render(request, "guest/cart.html", {"page": "cart"})
 
-#def cart_view(request: HttpRequest):
-#    return render(request, "base.html", {"page": "cart"})    
-
 
 def orders_view(request: HttpRequest):
     context = {"page": "orders"}
 
     qr = request.GET.get("qr")
     if qr:
-        try:
-            qr_uuid = UUID(qr)
-            table = Table.objects.filter(qr_token=qr_uuid).first()
-            if table:
-                session = (
-                    TableSession.objects
-                    .filter(table=table, status=TableSession.Status.ACTIVE)
-                    .order_by("-started_at")
-                    .first()
-                )
-                if session is None:
-                    session = TableSession.objects.create(table=table)
-                context["session_token"] = str(session.session_token)
-        except Exception:
-            pass
+        table, session = resolve_active_session_for_qr(qr)
+        if table and session:
+            context["session_token"] = str(session.session_token)
+        elif table and not session:
+            return render(request, "guest/table_closed.html", {
+                "page": "table_closed",
+                "table_number": table.number,
+            })
 
     return render(request, "guest/orders.html", context)
 
+
 def order_confirmed_view(request: HttpRequest):
     return render(request, "guest/order_confirmed.html", {"page": "order_confirmed"})
-
-
-def home(request: HttpRequest):
-    context = {
-        "page":                "home",
-        "featured_products":   Product.objects.filter(is_featured=True, is_available=True).select_related("category")[:8],
-        "discounted_products": Product.objects.filter(discount_price__isnull=False, is_available=True).select_related("category")[:8],
-        "categories":          Category.objects.all(),
-        "branch_count":        Branch.objects.filter(is_active=True).count(),
-        "product_count":       Product.objects.filter(is_available=True).count(),
-    }
-
-    qr = request.GET.get("qr")
-    if qr:
-        try:
-            qr_uuid = UUID(qr)
-            table = Table.objects.filter(qr_token=qr_uuid).first()
-            if table:
-                session = (
-                    TableSession.objects
-                    .filter(table=table, status=TableSession.Status.ACTIVE)
-                    .order_by("-started_at")
-                    .first()
-                )
-                if session is None:
-                    session = TableSession.objects.create(table=table)
-                context["session_token"] = str(session.session_token)
-        except Exception:
-            pass
-
-    return render(request, "guest/home.html", context)

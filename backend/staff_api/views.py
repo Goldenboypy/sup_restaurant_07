@@ -2,13 +2,38 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from urllib.parse import quote
+from uuid import UUID
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone as dj_timezone
 
 from core.models import KitchenTicket, PaymentRequest, RestaurantOrder, Table, TableSession
 from core.notifications import notify_kitchen
+
+def resolve_active_session_for_qr(qr_param):
+    """Look up an ALREADY-ACTIVE session for the table behind this QR token.
+    Never creates a session — only staff (table_detail's 'open_ordering'
+    action) is allowed to do that. This is what stops a photographed QR
+    code from being usable outside of a waiter-opened window.
+    """
+    if not qr_param:
+        return None, None
+    try:
+        qr_uuid = UUID(qr_param)
+    except (ValueError, TypeError):
+        return None, None
+    table = Table.objects.filter(qr_token=qr_uuid).first()
+    if not table:
+        return None, None
+    session = (
+        TableSession.objects
+        .filter(table=table, status=TableSession.Status.ACTIVE)
+        .order_by("-started_at")
+        .first()
+    )
+    return table, session
 
 
 class StaffLoginView(LoginView):
@@ -43,6 +68,19 @@ def table_detail(request, table_id: int):
                 table.status = status
                 table.save(update_fields=["status"])
 
+        elif action == "open_ordering":
+            existing = TableSession.objects.filter(table=table, status=TableSession.Status.ACTIVE).first()
+            if existing is None:
+                TableSession.objects.create(table=table)
+            if table.status == Table.Status.FREE:
+                table.status = Table.Status.OCCUPIED
+                table.save(update_fields=["status"])
+
+        elif action == "close_ordering":
+            TableSession.objects.filter(
+                table=table, status=TableSession.Status.ACTIVE
+            ).update(status=TableSession.Status.CLOSED, ended_at=dj_timezone.now())
+
         elif action == "confirm_order":
             order_id = request.POST.get("order_id")
             order = get_object_or_404(RestaurantOrder, id=order_id)
@@ -64,6 +102,10 @@ def table_detail(request, table_id: int):
     guest_url = request.build_absolute_uri(f"/?qr={table.qr_token}")
     qr_image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={quote(guest_url)}"
 
+    active_session = TableSession.objects.filter(
+        table=table, status=TableSession.Status.ACTIVE
+    ).first()
+
     pending_orders = (
         RestaurantOrder.objects.filter(
             session__table=table,
@@ -78,6 +120,7 @@ def table_detail(request, table_id: int):
         "table": table,
         "qr_image_url": qr_image_url,
         "guest_url": guest_url,
+        "active_session": active_session,
         "pending_orders": pending_orders,
     })
 

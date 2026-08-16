@@ -1,0 +1,14 @@
+{% extends "guest/base.html" %}
+{% load static %}
+
+{% block title %}Table not open — Restaurant{% endblock %}
+
+{% block content %}
+<div style="max-width:420px; margin:4rem auto; text-align:center;">
+  <h1 style="margin-bottom:0.75rem;">This table isn't open yet</h1>
+  <p style="color:#666;">
+    Table {{ table_number }} hasn't been opened for ordering by a waiter yet.
+    Please ask your waiter to open it, then scan the code again.
+  </p>
+</div>
+{% endblock %}
