@@ -644,4 +644,12 @@
 
 {% endblock %}
 
-{% block scripts %}{% endblock %}
+{% block scripts %}
+{% if session_token %}
+<script>
+  try {
+    localStorage.setItem('guest_session_token', "{{ session_token }}");
+  } catch (_) {}
+</script>
+{% endif %}
+{% endblock %}

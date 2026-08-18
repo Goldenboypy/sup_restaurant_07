@@ -18,6 +18,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
+      CODESPACE_NAME: ${CODESPACE_NAME}
+      GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN: ${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}
 
   db:
     image: postgres:17
@@ -27,8 +29,6 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data/
-
-
 
 
 volumes:

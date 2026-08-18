@@ -373,7 +373,8 @@
       const authToken = localStorage.getItem('token');
 
       if (guestToken) {
-        // Guest dine-in flow: add items to guest session cart, then submit order
+        // Guest dine-in flow: add item to guest session cart for review.
+        // Final submission happens only via "Finish Order" on /orders/.
         const calls = [];
         for (let i = 0; i < quantity; i++) {
           calls.push(guestFetch('/cart/items', {
@@ -382,10 +383,6 @@
           }));
         }
         Promise.all(calls)
-          .then(function () {
-            // submit guest order
-            return guestFetch('/orders', { method: 'POST' });
-          })
           .then(function () {
             window.location.href = '/orders/';
           })

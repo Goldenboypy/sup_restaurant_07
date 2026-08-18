@@ -30,6 +30,7 @@ Why Table (and the rest of Section 2) is registered here at all:
 from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
+import os
 
 from .models import (
     Category,
@@ -389,7 +390,18 @@ class TableAdmin(admin.ModelAdmin):
 
     @admin.display(description="QR code")
     def qr_code_preview(self, obj):
-        guest_url = f"https://guest.example.com/t/{obj.qr_token}"
+        codespace_name = os.environ.get("CODESPACE_NAME")
+        forwarding_domain = os.environ.get(
+            "GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "app.github.dev"
+        )
+
+        if codespace_name:
+            base_url = f"https://{codespace_name}-8000.{forwarding_domain}"
+        else:
+            base_url = "http://localhost:8000"
+
+        guest_url = f"{base_url}/?qr={obj.qr_token}"
+
         return format_html(
             '<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data={}" '
             'alt="QR code for Table {}"/><br><a href="{}" target="_blank">{}</a>',
