@@ -51,6 +51,14 @@ from guest_api.routers import (                         # ← guest_api/routers.
     loyalty_router,
 )
 
+from decimal import Decimal   # fehlt aktuell komplett -> get_guest_bill würde sonst mit NameError crashen
+from core.models import (
+    MenuCategory, MenuItem, Table, TableSession, Product,
+    RestaurantOrder, RestaurantOrderItem,          # NEU
+)
+
+
+
 # ---------------------------------------------------------------------------
 # NinjaAPI instance
 # ---------------------------------------------------------------------------
@@ -250,74 +258,126 @@ def add_guest_cart_item(request, data: GuestCartItemIn):
 
 @guest_session_router.post("/orders", response=GuestOrderOut)
 def submit_guest_order(request):
-    """Move the draft cart into a session order, retaining exclusions."""
+    """Move the draft cart into a real RestaurantOrder (DB), retaining
+    exclusions, so staff (table_detail / /api/staff/orders/pending) sees it."""
+    token = request.headers.get("X-Table-Session")
     key = _guest_cart_key(request)
     cart = request.session.get(key, [])
     if not cart:
         raise HttpError(400, "Cart is empty")
 
-    orders_key = f"guest_orders:{key.removeprefix('guest_cart:')}"
-    orders = request.session.get(orders_key, [])
-    order = {
-        "id": len(orders) + 1,
-        "status": "submitted",
-        "placed_at": timezone.now().isoformat(),
-        "items": cart,
-    }
-    orders.append(order)
-    request.session[orders_key] = orders
+    session = get_object_or_404(
+        TableSession, session_token=token, status=TableSession.Status.ACTIVE
+    )
+
+    order = RestaurantOrder.objects.create(session=session)
+
+    order_items = []
+    for line in cart:
+        try:
+            menu_item = MenuItem.objects.get(id=line["item_id"])
+        except MenuItem.DoesNotExist:
+            # Cart lines pointing at a legacy Product (no dine-in
+            # counterpart) can't be attached to a RestaurantOrderItem
+            # (menu_item FK is on_delete=PROTECT) -- skip them.
+            continue
+        order_items.append(RestaurantOrderItem(
+            order=order,
+            menu_item=menu_item,
+            quantity=line.get("quantity", 1),
+            excluded_ingredients=line.get("excluded_ingredients", []),
+        ))
+
+    if not order_items:
+        order.delete()
+        raise HttpError(400, "Cart contains no orderable dine-in items")
+
+    RestaurantOrderItem.objects.bulk_create(order_items)
+
     request.session[key] = []
     request.session.modified = True
-    return order
+
+    waiter = session.table.assigned_waiter
+    if waiter is not None:
+        notify_waiter(waiter.id, "order.submitted", {
+            "order_id": order.id,
+            "table_number": session.table.number,
+        })
+
+    return {
+        "id": order.id,
+        "status": order.status,
+        "placed_at": order.submitted_at.isoformat(),
+        "items": cart,
+    }
 
 
 @guest_session_router.get("/orders", response=list[GuestOrderOut])
 def list_guest_orders(request):
-    key = _guest_cart_key(request)
-    orders_key = f"guest_orders:{key.removeprefix('guest_cart:')}"
-    return request.session.get(orders_key, [])
+    token = request.headers.get("X-Table-Session")
+    _guest_cart_key(request)
+    orders = (
+        RestaurantOrder.objects
+        .filter(session__session_token=token)
+        .prefetch_related("items__menu_item")
+        .order_by("submitted_at")
+    )
+    return [
+        {
+            "id": o.id,
+            "status": o.status,
+            "placed_at": o.submitted_at.isoformat(),
+            "items": [
+                {
+                    "cart_item_id": f"{it.menu_item_id}:{it.id}",
+                    "item_id": it.menu_item_id,
+                    "name": it.menu_item.name,
+                    "quantity": it.quantity,
+                    "excluded_ingredients": it.excluded_ingredients,
+                }
+                for it in o.items.all()
+            ],
+        }
+        for o in orders
+    ]
 
 
 @guest_session_router.get("/bill", response=GuestBillOut)
 def get_guest_bill(request):
-    key = _guest_cart_key(request)
-    orders_key = f"guest_orders:{key.removeprefix('guest_cart:')}"
-    orders = request.session.get(orders_key, [])
+    token = request.headers.get("X-Table-Session")
+    _guest_cart_key(request)
+    orders = (
+        RestaurantOrder.objects
+        .filter(session__session_token=token)
+        .prefetch_related("items__menu_item")
+        .order_by("submitted_at")
+    )
     total = Decimal("0")
     bill_orders = []
     for order in orders:
         bill_items = []
-        for line in order["items"]:
-            # First try MenuItem (dine-in menu). If not present, fall back
-            # to Product (legacy catalog) to support orders created from
-            # legacy product pages that reference Product IDs.
-            try:
-                item_obj = MenuItem.objects.get(id=line["item_id"])
-                price_val = item_obj.price
-                photo_url = item_obj.photo.url if item_obj.photo else ""
-            except MenuItem.DoesNotExist:
-                prod = Product.objects.filter(id=line["item_id"]).first()
-                if prod is None:
-                    raise HttpError(404, f"Ordered item not found: {line['item_id']}")
-                price_val = prod.price
-                photo_url = prod.image_url or ""
-
-            subtotal = price_val * line["quantity"]
+        for it in order.items.all():
+            price_val = it.menu_item.price
+            photo_url = it.menu_item.photo.url if it.menu_item.photo else ""
+            subtotal = price_val * it.quantity
             total += subtotal
             bill_items.append(GuestBillItemOut(
-                **line,
+                cart_item_id=f"{it.menu_item_id}:{it.id}",
+                item_id=it.menu_item_id,
+                name=it.menu_item.name,
+                quantity=it.quantity,
+                excluded_ingredients=it.excluded_ingredients,
                 price=price_val,
                 subtotal=subtotal,
                 photo_url=photo_url,
             ))
         bill_orders.append(GuestBillOrderOut(
-            id=order["id"],
-            status=order["status"],
-            placed_at=order["placed_at"],
+            id=order.id,
+            status=order.status,
+            placed_at=order.submitted_at.isoformat(),
             items=bill_items,
         ))
     return {"total": total, "currency": "UZS", "orders": bill_orders}
-
 
 @guest_session_router.post("/payment")
 def request_guest_payment(request, data: GuestPaymentIn):
