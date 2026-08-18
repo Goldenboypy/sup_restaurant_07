@@ -187,10 +187,10 @@ def get_guest_item(request, item_id: int):
         )
 
 
-    @guest_session_router.get("/cart", response=list[GuestCartItemOut])
-    def get_guest_cart(request):
-        """Return the current guest cart stored in the Django session."""
-        return request.session.get(_guest_cart_key(request), [])
+@guest_session_router.get("/cart", response=list[GuestCartItemOut])
+def get_guest_cart(request):
+    """Return the current guest cart stored in the Django session."""
+    return request.session.get(_guest_cart_key(request), [])
 
 
 def _guest_cart_key(request) -> str:
