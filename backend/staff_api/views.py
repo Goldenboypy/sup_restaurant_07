@@ -59,8 +59,19 @@ def table_detail(request, table_id: int):
         action = request.POST.get("action")
 
         if action == "assign_self" and waiter is not None:
-            table.assigned_waiter = waiter
-            table.save(update_fields=["assigned_waiter"])
+            is_admin = request.user.is_superuser
+            if table.assigned_waiter is None or is_admin:
+                table.assigned_waiter = waiter
+                table.save(update_fields=["assigned_waiter"])
+            # else: table already belongs to someone else -> silently ignore,
+            # no other waiter is allowed to grab it away from them.
+
+        elif action == "unassign_self":
+            is_admin = request.user.is_superuser
+            if table.assigned_waiter is not None and (table.assigned_waiter == waiter or is_admin):
+                table.assigned_waiter = None
+                table.save(update_fields=["assigned_waiter"])
+            # else: not your table and you're not an admin -> silently ignore.
 
         elif action == "set_status":
             status = request.POST.get("status")

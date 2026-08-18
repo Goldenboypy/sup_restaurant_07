@@ -13,14 +13,31 @@
   <div class="card">
     <h3>Assignment &amp; status</h3>
     <p class="muted">
-      Assigned waiter:
-      {% if table.assigned_waiter %}{{ table.assigned_waiter.display_name }}{% else %}none{% endif %}
-    </p>
-    <form method="post" style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.75rem;">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="assign_self">
-      <button type="submit" class="btn btn-primary">Assign myself to this table</button>
-    </form>
+  Assigned waiter:
+  {% if table.assigned_waiter %}{{ table.assigned_waiter.display_name }}{% else %}none{% endif %}
+</p>
+
+{% if not table.assigned_waiter %}
+  <form method="post" style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.75rem;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="assign_self">
+    <button type="submit" class="btn btn-primary">Assign myself to this table</button>
+  </form>
+{% elif table.assigned_waiter.user_id == request.user.id or request.user.is_superuser %}
+  <form method="post" style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.75rem;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="unassign_self">
+    <button type="submit" class="btn btn-outline">
+      {% if request.user.is_superuser and table.assigned_waiter.user_id != request.user.id %}
+        Remove {{ table.assigned_waiter.display_name }} from this table
+      {% else %}
+        Unassign myself from this table
+      {% endif %}
+    </button>
+  </form>
+{% else %}
+  <p class="muted" style="margin-top:.75rem;">This table is already assigned to another waiter.</p>
+{% endif %}
 
     <form method="post" style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.6rem;">
       {% csrf_token %}
