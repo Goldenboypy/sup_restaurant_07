@@ -1,6 +1,3 @@
-bash
-
-cat > /home/claude/project/config/asgi.py << 'EOF'
 """
 config/asgi.py
 --------------
@@ -8,22 +5,24 @@ ASGI entry point — handles both HTTP and WebSocket connections.
 
 Connection map:
     ← config/settings.py          : DJANGO_SETTINGS_MODULE, CHANNEL_LAYERS
-    ← supermarket/routing.py      : websocket_urlpatterns
-    → supermarket/consumers.py    : routed via ProtocolTypeRouter
+    ← guest_api/routing.py        : websocket_urlpatterns
+    → guest_api/consumers.py      : routed via ProtocolTypeRouter
+    → staff_api/consumers.py      : routed via ProtocolTypeRouter
 
 Protocol routing:
-    "http"      → Django ASGI app  → config/urls.py → supermarket/api.py
-    "websocket" → AuthMiddlewareStack
+    "http"      → Django ASGI app  → config/urls.py → guest_api/api.py
+    "websocket" → AllowedHostsOriginValidator
                     → URLRouter(websocket_urlpatterns)
-                        → OrderConsumer
-                        → NotificationConsumer
-                        → StockConsumer
+                        → OrderConsumer, NotificationConsumer,
+                          StockConsumer, GuestTableConsumer
+                        → WaiterConsumer, KitchenConsumer
 
 Production:
-    uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --workers 4
+    daphne -b 0.0.0.0 -p 8000 config.asgi:application
 
 Development:
-    python manage.py runserver
+    python manage.py runserver   (daphne handles this automatically once
+                                   "daphne" is first in INSTALLED_APPS)
 """
 
 import os
@@ -49,11 +48,3 @@ application = ProtocolTypeRouter({
         URLRouter(websocket_urlpatterns)
     ),
 })
-EOF
-echo "asgi.py updated"
-
-
-
-
-
-

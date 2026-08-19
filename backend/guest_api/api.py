@@ -256,6 +256,28 @@ def add_guest_cart_item(request, data: GuestCartItemIn):
     return result
 
 
+def _get_or_create_menu_item_for_product(product: Product) -> MenuItem:
+    """Legacy Product objects have no dine-in MenuItem counterpart, but
+    RestaurantOrderItem requires one (menu_item is a required FK). Mirror
+    the Product into a MenuItem on first use, then reuse it afterward —
+    matched by name to avoid creating duplicates on every order."""
+    legacy_category, _ = MenuCategory.objects.get_or_create(
+        slug="legacy-catalog",
+        defaults={"name": "Catalog items", "display_order": 999},
+    )
+    menu_item, _ = MenuItem.objects.get_or_create(
+        category=legacy_category,
+        name=product.name,
+        defaults={
+            "description": product.description or "",
+            "ingredients": [],
+            "price": product.active_price,
+            "is_available_now": True,
+        },
+    )
+    return menu_item
+
+
 @guest_session_router.post("/orders", response=GuestOrderOut)
 def submit_guest_order(request):
     """Move the draft cart into a real RestaurantOrder (DB), retaining
@@ -274,13 +296,17 @@ def submit_guest_order(request):
 
     order_items = []
     for line in cart:
+        menu_item = None
         try:
             menu_item = MenuItem.objects.get(id=line["item_id"])
         except MenuItem.DoesNotExist:
-            # Cart lines pointing at a legacy Product (no dine-in
-            # counterpart) can't be attached to a RestaurantOrderItem
-            # (menu_item FK is on_delete=PROTECT) -- skip them.
+            product = Product.objects.filter(id=line["item_id"]).first()
+            if product is not None:
+                menu_item = _get_or_create_menu_item_for_product(product)
+
+        if menu_item is None:
             continue
+
         order_items.append(RestaurantOrderItem(
             order=order,
             menu_item=menu_item,

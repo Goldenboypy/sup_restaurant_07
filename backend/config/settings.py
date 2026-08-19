@@ -26,6 +26,8 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 # APPLICATIONS
 # ---------------------------------------------------------------------------
 INSTALLED_APPS = [
+    "daphne",
+    "channels",
     # Django built-ins
     "django.contrib.admin",
     "django.contrib.auth",
@@ -125,6 +127,14 @@ DATABASES = {
         "HOST": os.environ.get("POSTGRES_HOST", "db"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
+}
+
+ASGI_APPLICATION = "config.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
 }
 
 # ---------------------------------------------------------------------------

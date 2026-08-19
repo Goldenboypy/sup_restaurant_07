@@ -314,3 +314,45 @@ class StockConsumer(AsyncWebsocketConsumer):
             "product_id": event["product_id"],
             "stock":      event["stock"],
         }))
+
+# ===========================================================================
+# GUEST TABLE CONSUMER
+# ws://localhost:8000/ws/guest/table/<session_token>/
+# (no auth required — the session_token itself is the guest's identity)
+# ===========================================================================
+class GuestTableConsumer(AsyncWebsocketConsumer):
+    """
+    Per-table-session channel for a dine-in guest.
+
+    Pushed to via core.notifications.notify_guest_session(), used by
+    staff_api/routers.py when a waiter confirms an order or marks it served.
+
+    Client receives:
+        {"type": "order.status_changed", "order_id": 5, "status": "served"}
+        {"type": "bill.ready", ...}
+    """
+
+    async def connect(self):
+        self.session_token = self.scope["url_route"]["kwargs"]["session_token"]
+        self.group_name = f"table_{self.session_token}"
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive(self, text_data):
+        pass  # server → client only
+
+    # ── group message handlers ──────────────────────────────────────────────
+    # notify_guest_session() sends {"type": channel_event_type, "event": ..., "payload": ...}
+    # where channel_event_type is event.replace(".", "_") — so these method
+    # names must match exactly (order_status_changed, bill_ready).
+
+    async def order_status_changed(self, event):
+        await self.send(json.dumps({"type": event["event"], **event["payload"]}))
+
+    async def bill_ready(self, event):
+        await self.send(json.dumps({"type": event["event"], **event["payload"]}))
