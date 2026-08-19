@@ -110,7 +110,8 @@
 </style>
 {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body {% if request.user.is_authenticated %} data-waiter-id="{{ request.user.waiter_profile.id|default:'' }}"{% endif %}>
+
 {% if request.user.is_authenticated %}
 <header class="topbar">
   <span class="brand">Staff Console</span>
@@ -134,5 +135,6 @@
   {% endif %}
   {% block content %}{% endblock %}
 </main>
+<script src="{% static 'staff/js/notifications.js' %}" defer></script>
 </body>
 </html>

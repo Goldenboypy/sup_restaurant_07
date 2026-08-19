@@ -1,6 +1,24 @@
 {% extends "staff/base.html" %}
 {% block title %}Table map{% endblock %}
 {% block nav_tables %}active{% endblock %}
+{% block extra_head %}
+<style>
+  .table-card-link { position: relative; }
+  .ready-dot {
+    position: absolute;
+    top: .6rem;
+    right: .6rem;
+    width: .7rem;
+    height: .7rem;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .ready-dot--active {
+    background: var(--free);
+    box-shadow: 0 0 0 3px rgba(47,158,100,.25);
+  }
+</style>
+{% endblock %}
 {% block content %}
 <h1>Table map</h1>
 <p class="muted" style="margin-bottom:1.5rem;">Every table, its current status and assigned waiter.</p>
@@ -8,7 +26,14 @@
 {% if tables %}
 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:1rem;">
   {% for table in tables %}
-  <a href="{% url 'staff-table-detail' table.id %}" class="card" style="text-decoration:none; color:inherit; display:block;">
+  <a href="{% url 'staff-table-detail' table.id %}"
+     class="card table-card-link"
+     data-table-id="{{ table.id }}"
+     data-table-number="{{ table.number }}"
+     style="text-decoration:none; color:inherit; display:block;">
+    <span class="ready-dot{% if table.number in ready_table_numbers %} ready-dot--active{% endif %}"
+          data-ready-dot
+          title="Order ready to serve"></span>
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:.6rem;">
       <h3 style="margin:0;">Table {{ table.number }}</h3>
       <span class="status-badge status-{{ table.status }}">{{ table.get_status_display|default:table.status }}</span>

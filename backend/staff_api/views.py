@@ -49,8 +49,14 @@ class StaffLoginView(LoginView):
 @login_required
 def table_map(request):
     tables = Table.objects.select_related("assigned_waiter").order_by("number")
-    return render(request, "staff/table_map.html", {"tables": tables})
-
+    ready_table_numbers = set(
+        RestaurantOrder.objects.filter(status=RestaurantOrder.Status.READY)
+        .values_list("session__table__number", flat=True)
+    )
+    return render(request, "staff/table_map.html", {
+        "tables": tables,
+        "ready_table_numbers": ready_table_numbers,
+    })
 
 @login_required
 def table_detail(request, table_id: int):
@@ -121,6 +127,19 @@ def table_detail(request, table_id: int):
                 "status": order.status,
             })
 
+        elif action == "mark_served":
+            order_id = request.POST.get("order_id")
+            order = get_object_or_404(RestaurantOrder, id=order_id)
+            order.status = RestaurantOrder.Status.SERVED
+            order.served_at = dj_timezone.now()
+            order.served_by = waiter
+            order.save(update_fields=["status", "served_at", "served_by"])
+
+            notify_guest_session(str(order.session.session_token), "order.status_changed", {
+                "order_id": order.id,
+                "status": order.status,
+            })
+
         return redirect("staff-table-detail", table_id=table.id)
 
     guest_url = request.build_absolute_uri(f"/?qr={table.qr_token}")
@@ -141,12 +160,23 @@ def table_detail(request, table_id: int):
         .prefetch_related("items__menu_item")
     )
 
+    ready_orders = (
+        RestaurantOrder.objects.filter(
+            session__table=table,
+            session__status=TableSession.Status.ACTIVE,
+            status=RestaurantOrder.Status.READY,
+        )
+        .select_related("session")
+        .prefetch_related("items__menu_item")
+    )
+
     return render(request, "staff/table_detail.html", {
         "table": table,
         "qr_image_url": qr_image_url,
         "guest_url": guest_url,
         "active_session": active_session,
         "pending_orders": pending_orders,
+        "ready_orders": ready_orders,
     })
 
 

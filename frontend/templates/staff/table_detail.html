@@ -81,6 +81,28 @@
 {% else %}
   <p class="muted">No orders waiting on confirmation.</p>
 {% endif %}
+
+    <h3 style="margin-top:1.5rem;">Ready to serve</h3>
+{% if ready_orders %}
+  {% for order in ready_orders %}
+    <div style="border-top:1px solid var(--border); padding:.75rem 0;">
+      <p style="margin:0 0 .4rem; font-weight:600;">Order #{{ order.id }}</p>
+      <ul style="margin:0 0 .5rem; padding-left:1.1rem;">
+        {% for item in order.items.all %}
+          <li>{{ item.quantity }}× {{ item.menu_item.name }}</li>
+        {% endfor %}
+      </ul>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="mark_served">
+        <input type="hidden" name="order_id" value="{{ order.id }}">
+        <button type="submit" class="btn btn-success">Take</button>
+      </form>
+    </div>
+  {% endfor %}
+{% else %}
+  <p class="muted">Nothing ready to pick up right now.</p>
+{% endif %}
   </div>
 
   <div class="card">
