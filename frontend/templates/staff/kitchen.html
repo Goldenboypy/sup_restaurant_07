@@ -11,9 +11,9 @@
     <h3><span class="status-badge status-new">New</span></h3>
     {% for ticket in tickets_new %}
       <div class="card" style="border-left:4px solid var(--accent); margin-bottom:.9rem;">
-        <p style="margin:0 0 .3rem; font-weight:700;">Table {{ ticket.order.table.number }} · Ticket #{{ ticket.id }}</p>
+        <p style="margin:0 0 .3rem; font-weight:700;">Table {{ ticket.order.session.table.number }} · Ticket #{{ ticket.id }}</p>
         <p class="muted" style="margin:0 0 .6rem; border-bottom:1px dashed var(--border); padding-bottom:.5rem;">
-          Waiter: {{ ticket.order.confirmed_by_waiter.name|default:"—" }}
+          Waiter: {{ ticket.order.confirmed_by.display_name|default:"—" }}
         </p>
         <ul style="margin:0 0 .75rem; padding-left:1.1rem; font-size:.9rem;">
           {% for item in ticket.order.items.all %}
@@ -22,6 +22,26 @@
             </li>
           {% endfor %}
         </ul>
+
+        {% if not ticket.assigned_cook %}
+          <form method="post" style="margin-bottom:.5rem;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="assign_self">
+            <input type="hidden" name="ticket_id" value="{{ ticket.id }}">
+            <button type="submit" class="btn btn-outline">Assign myself</button>
+          </form>
+        {% elif ticket.assigned_cook.user_id == request.user.id or request.user.is_superuser %}
+          <p class="muted" style="margin:0 0 .3rem;">Cook: {{ ticket.assigned_cook.display_name }}</p>
+          <form method="post" style="margin-bottom:.5rem;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="unassign_self">
+            <input type="hidden" name="ticket_id" value="{{ ticket.id }}">
+            <button type="submit" class="btn btn-outline">Unassign</button>
+          </form>
+        {% else %}
+          <p class="muted" style="margin:0 0 .5rem;">Cook: {{ ticket.assigned_cook.display_name }}</p>
+        {% endif %}
+
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="action" value="set_ticket_status">
@@ -39,7 +59,8 @@
     <h3><span class="status-badge status-in_progress">In progress</span></h3>
     {% for ticket in tickets_in_progress %}
       <div class="card" style="border-left:4px solid var(--occupied); margin-bottom:.9rem;">
-        <p style="margin:0 0 .3rem; font-weight:700;">Table {{ ticket.order.table.number }} · Ticket #{{ ticket.id }}</p>
+        <p style="margin:0 0 .3rem; font-weight:700;">Table {{ ticket.order.session.table.number }} · Ticket #{{ ticket.id }}</p>
+        <p class="muted" style="margin:0 0 .6rem;">Cook: {{ ticket.assigned_cook.display_name|default:"unassigned" }}</p>
         <ul style="margin:0 0 .75rem; padding-left:1.1rem; font-size:.9rem;">
           {% for item in ticket.order.items.all %}
             <li>{{ item.quantity }}× {{ item.menu_item.name }}</li>
@@ -62,8 +83,8 @@
     <h3><span class="status-badge status-ready">Ready</span></h3>
     {% for ticket in tickets_ready %}
       <div class="card" style="border-left:4px solid var(--free); margin-bottom:.9rem;">
-        <p style="margin:0 0 .3rem; font-weight:700;">Table {{ ticket.order.table.number }} · Ticket #{{ ticket.id }}</p>
-        <p class="muted" style="margin:0;">Waiting for {{ ticket.order.confirmed_by_waiter.name|default:"assigned waiter" }} to pick up.</p>
+        <p style="margin:0 0 .3rem; font-weight:700;">Table {{ ticket.order.session.table.number }} · Ticket #{{ ticket.id }}</p>
+        <p class="muted" style="margin:0;">Waiting for {{ ticket.order.confirmed_by.display_name|default:"assigned waiter" }} to pick up.</p>
       </div>
     {% empty %}
       <div class="empty-state">No tickets ready for pickup.</div>

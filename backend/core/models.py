@@ -472,3 +472,21 @@ class PaymentRequest(models.Model):
 # NOTE: no new LoyaltyCard model here on purpose -- Section 1's LoyaltyCard
 # (above) already covers cashback for any authenticated User, dine-in
 # guests included, so it is reused as-is rather than duplicated.
+
+
+class KitchenTicket(models.Model):
+    class Status(models.TextChoices):
+        NEW         = "new",         "New"
+        IN_PROGRESS = "in_progress", "In progress"
+        READY       = "ready",       "Ready"
+
+    order         = models.OneToOneField(RestaurantOrder, on_delete=models.CASCADE, related_name="ticket")
+    status        = models.CharField(max_length=12, choices=Status.choices, default=Status.NEW)
+    assigned_cook = models.ForeignKey(
+        Waiter, on_delete=models.SET_NULL, null=True, blank=True, related_name="kitchen_tickets"
+    )
+    created_at    = models.DateTimeField(auto_now_add=True)
+    completed_at  = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Ticket for RestaurantOrder #{self.order_id} ({self.status})"
