@@ -336,12 +336,21 @@ def submit_guest_order(request):
     order_items = []
     for line in cart:
         menu_item = None
-        try:
-            menu_item = MenuItem.objects.get(id=line["item_id"])
-        except MenuItem.DoesNotExist:
+        source = line.get("source")
+
+        if source == "product":
             product = Product.objects.filter(id=line["item_id"]).first()
             if product is not None:
                 menu_item = _get_or_create_menu_item_for_product(product)
+        elif source == "menu_item":
+            menu_item = MenuItem.objects.filter(id=line["item_id"]).first()
+        else:
+            # Legacy cart lines saved before "source" existed.
+            menu_item = MenuItem.objects.filter(id=line["item_id"]).first()
+            if menu_item is None:
+                product = Product.objects.filter(id=line["item_id"]).first()
+                if product is not None:
+                    menu_item = _get_or_create_menu_item_for_product(product)
 
         if menu_item is None:
             continue
