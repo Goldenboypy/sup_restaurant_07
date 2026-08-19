@@ -386,6 +386,7 @@ class RestaurantOrder(models.Model):
         KITCHEN_IN_PROGRESS  = "kitchen_in_progress",   "Kitchen in progress"
         READY                = "ready",                 "Ready"
         SERVED               = "served",                "Served"
+        REJECTED             = "rejected",              "Rejected"
 
     # FK → TableSession
     session             = models.ForeignKey(TableSession, on_delete=models.CASCADE, related_name="orders")

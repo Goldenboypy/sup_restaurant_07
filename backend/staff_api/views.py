@@ -10,7 +10,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone as dj_timezone
 
 from core.models import KitchenTicket, PaymentRequest, RestaurantOrder, Table, TableSession
-from core.notifications import notify_kitchen
+from core.notifications import notify_kitchen, notify_guest_session
+
+
 
 def resolve_active_session_for_qr(qr_param):
     """Look up an ALREADY-ACTIVE session for the table behind this QR token.
@@ -108,6 +110,17 @@ def table_detail(request, table_id: int):
                 "table_number": table.number,
             })
 
+        elif action == "reject_order":
+            order_id = request.POST.get("order_id")
+            order = get_object_or_404(RestaurantOrder, id=order_id)
+            order.status = RestaurantOrder.Status.REJECTED
+            order.save(update_fields=["status"])
+
+            notify_guest_session(str(order.session.session_token), "order.status_changed", {
+                "order_id": order.id,
+                "status": order.status,
+            })
+
         return redirect("staff-table-detail", table_id=table.id)
 
     guest_url = request.build_absolute_uri(f"/?qr={table.qr_token}")
@@ -123,6 +136,7 @@ def table_detail(request, table_id: int):
             session__status=TableSession.Status.ACTIVE,
             confirmed_by_waiter=False,
         )
+        .exclude(status=RestaurantOrder.Status.REJECTED)
         .select_related("session")
         .prefetch_related("items__menu_item")
     )

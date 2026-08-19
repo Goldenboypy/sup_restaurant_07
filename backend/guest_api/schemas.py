@@ -86,12 +86,14 @@ class MenuItemDetailOut(MenuItemSummaryOut):
 
 class GuestCartItemIn(Schema):
     item_id: int
+    source: str = ""
     excluded_ingredients: list[str] = []
 
 
 class GuestCartItemOut(Schema):
     cart_item_id: str
     item_id: int
+    source: str = ""
     name: str
     quantity: int
     excluded_ingredients: list[str]

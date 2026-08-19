@@ -17,3 +17,44 @@
   </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  function getGuestToken() {
+    try {
+      return localStorage.getItem('guest_session_token');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  const token = getGuestToken();
+  if (!token) return;
+
+  const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(wsScheme + '://' + window.location.host + '/ws/guest/table/' + token + '/');
+
+  ws.onmessage = function (event) {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'order.status_changed' && data.status === 'rejected') {
+        showRejectionNotice();
+      }
+    } catch (_) {}
+  };
+
+  function showRejectionNotice() {
+    const container = document.querySelector('.confirm-card');
+    if (!container) return;
+    container.innerHTML =
+      '<div class="confirm-icon" style="background:#ef4444;" aria-hidden="true">!</div>' +
+      '<h1 class="confirm-title">Order rejected</h1>' +
+      '<p class="confirm-body">Unfortunately your order was rejected by the waiter. Please place a new order.</p>' +
+      '<a class="btn btn--primary confirm-home-btn" href="/menu/">Order again</a>';
+  }
+})();
+</script>
+{% endblock %}

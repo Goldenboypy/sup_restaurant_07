@@ -149,12 +149,16 @@ def list_guest_category_items(request, category_id: int):
 
 
 @guest_session_router.get("/menu/items/{item_id}", response=MenuItemDetailOut)
-def get_guest_item(request, item_id: int):
-    """Return one available dine-in product with its ingredients."""
-    # Try MenuItem first; if it doesn't exist, fall back to Product so
-    # legacy product pages can call this guest endpoint with a Product id.
-    try:
-        item = MenuItem.objects.get(id=item_id, is_available_now=True)
+def get_guest_item(request, item_id: int, source: str = ""):
+    """Return one available dine-in product with its ingredients.
+
+    `source` ("menu_item" or "product") disambiguates item_id, since
+    MenuItem and Product have independent auto-increment ids that can
+    collide. Without it, this falls back to the old best-effort order
+    (MenuItem first, then Product) for backward compatibility with
+    older cart entries saved before "source" existed.
+    """
+    def _from_menu_item(item):
         ingredients = []
         for index, ingredient in enumerate(item.ingredients or [], start=1):
             if isinstance(ingredient, dict):
@@ -165,7 +169,6 @@ def get_guest_item(request, item_id: int):
                 })
             else:
                 ingredients.append({"id": index, "name": str(ingredient), "allergen": False})
-
         return MenuItemDetailOut(
             id=item.id,
             name=item.name,
@@ -175,15 +178,10 @@ def get_guest_item(request, item_id: int):
             description=item.description,
             ingredients=ingredients,
         )
-    except MenuItem.DoesNotExist:
-        # Product fallback
-        prod = Product.objects.filter(id=item_id, is_available=True).first()
-        if prod is None:
-            raise HttpError(404, "Not Found: No MenuItem matches the given query.")
 
-        # Map Product -> MenuItemDetailOut shape
+    def _from_product(prod):
         desc_ings = [s.strip() for s in (prod.description or "").split(",") if s.strip()][:8]
-        ingredients = [{"id": i+1, "name": name, "allergen": False} for i, name in enumerate(desc_ings)]
+        ingredients = [{"id": i + 1, "name": name, "allergen": False} for i, name in enumerate(desc_ings)]
         return MenuItemDetailOut(
             id=prod.id,
             name=prod.name,
@@ -193,6 +191,27 @@ def get_guest_item(request, item_id: int):
             description=prod.description or "",
             ingredients=ingredients,
         )
+
+    if source == "product":
+        prod = Product.objects.filter(id=item_id, is_available=True).first()
+        if prod is None:
+            raise HttpError(404, "Not Found: No Product matches the given query.")
+        return _from_product(prod)
+
+    if source == "menu_item":
+        item = MenuItem.objects.filter(id=item_id, is_available_now=True).first()
+        if item is None:
+            raise HttpError(404, "Not Found: No MenuItem matches the given query.")
+        return _from_menu_item(item)
+
+    # No source given — legacy best-effort fallback for old cart entries.
+    item = MenuItem.objects.filter(id=item_id, is_available_now=True).first()
+    if item is not None:
+        return _from_menu_item(item)
+    prod = Product.objects.filter(id=item_id, is_available=True).first()
+    if prod is None:
+        raise HttpError(404, "Not Found: No MenuItem matches the given query.")
+    return _from_product(prod)
 
 
 @guest_session_router.get("/cart", response=list[GuestCartItemOut])
@@ -217,21 +236,40 @@ def add_guest_cart_item(request, data: GuestCartItemIn):
     key = _guest_cart_key(request)
     cart = request.session.get(key, [])
 
-    # Try MenuItem first; if not found, fall back to Product (legacy)
+    # item_id alone is ambiguous: MenuItem and Product have independent
+    # auto-increment ids that can collide (e.g. MenuItem id=1 and Product
+    # id=1 are unrelated rows). If the client tells us the source, trust
+    # it. Otherwise fall back to the old best-effort guess for legacy
+    # callers that don't send it yet.
     item = None
     product_fallback = None
-    try:
-        item = MenuItem.objects.get(id=data.item_id, is_available_now=True)
-    except MenuItem.DoesNotExist:
+    source = data.source
+
+    if source == "product":
         product_fallback = Product.objects.filter(id=data.item_id, is_available=True).first()
         if product_fallback is None:
             raise HttpError(404, "Item not found")
+    elif source == "menu_item":
+        item = MenuItem.objects.filter(id=data.item_id, is_available_now=True).first()
+        if item is None:
+            raise HttpError(404, "Item not found")
+    else:
+        try:
+            item = MenuItem.objects.get(id=data.item_id, is_available_now=True)
+            source = "menu_item"
+        except MenuItem.DoesNotExist:
+            product_fallback = Product.objects.filter(id=data.item_id, is_available=True).first()
+            if product_fallback is None:
+                raise HttpError(404, "Item not found")
+            source = "product"
 
     resolved_id = item.id if item is not None else product_fallback.id
+    image_url = (item.photo.url if item and item.photo else "") if item is not None else (product_fallback.image_url or "")
 
     existing = next(
         (entry for entry in cart
          if entry["item_id"] == resolved_id
+         and entry.get("source") == source
          and entry["excluded_ingredients"] == data.excluded_ingredients),
         None,
     )
@@ -241,11 +279,12 @@ def add_guest_cart_item(request, data: GuestCartItemIn):
         result = existing
     else:
         name = item.name if item is not None else product_fallback.name
-        iid = resolved_id
         result = {
-            "cart_item_id": f"{iid}:{len(cart)}",
-            "item_id": iid,
+            "cart_item_id": f"{source}:{resolved_id}:{len(cart)}",
+            "item_id": resolved_id,
+            "source": source,
             "name": name,
+            "photo_url": image_url,
             "quantity": 1,
             "excluded_ingredients": data.excluded_ingredients,
         }

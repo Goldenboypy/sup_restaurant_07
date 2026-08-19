@@ -53,26 +53,34 @@
     </form>
 
     <h3 style="margin-top:1.5rem;">Orders awaiting confirmation</h3>
-    {% if pending_orders %}
-      {% for order in pending_orders %}
-        <div style="border-top:1px solid var(--border); padding:.75rem 0;">
-          <p style="margin:0 0 .4rem; font-weight:600;">Order #{{ order.id }}</p>
-          <ul style="margin:0 0 .5rem; padding-left:1.1rem;">
-            {% for item in order.items.all %}
-              <li>{{ item.quantity }}× {{ item.menu_item.name }}</li>
-            {% endfor %}
-          </ul>
-          <form method="post">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="confirm_order">
-            <input type="hidden" name="order_id" value="{{ order.id }}">
-            <button type="submit" class="btn btn-success">Confirm order</button>
-          </form>
-        </div>
-      {% endfor %}
-    {% else %}
-      <p class="muted">No orders waiting on confirmation.</p>
-    {% endif %}
+{% if pending_orders %}
+  {% for order in pending_orders %}
+    <div style="border-top:1px solid var(--border); padding:.75rem 0;">
+      <p style="margin:0 0 .4rem; font-weight:600;">Order #{{ order.id }}</p>
+      <ul style="margin:0 0 .5rem; padding-left:1.1rem;">
+        {% for item in order.items.all %}
+          <li>{{ item.quantity }}× {{ item.menu_item.name }}</li>
+        {% endfor %}
+      </ul>
+      <div style="display:flex; gap:.6rem;">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="confirm_order">
+          <input type="hidden" name="order_id" value="{{ order.id }}">
+          <button type="submit" class="btn btn-success">Confirm order</button>
+        </form>
+        <form method="post" class="reject-order-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="reject_order">
+          <input type="hidden" name="order_id" value="{{ order.id }}">
+          <button type="submit" class="btn btn-outline">Reject order</button>
+        </form>
+      </div>
+    </div>
+  {% endfor %}
+{% else %}
+  <p class="muted">No orders waiting on confirmation.</p>
+{% endif %}
   </div>
 
   <div class="card">
@@ -115,4 +123,19 @@
 })();
 </script>
 </div>
+
+<script>
+(function () {
+  document.querySelectorAll('.reject-order-form').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      const confirmed = window.confirm('Are you sure you want to reject this order?');
+      if (!confirmed) {
+        e.preventDefault();
+      }
+    });
+  });
+})();
+</script>
+
+
 {% endblock %}

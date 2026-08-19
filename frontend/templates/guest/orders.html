@@ -180,18 +180,25 @@
     });
   }
 
-async function getItemDetail(itemId, fallback) {
+  async function getItemDetail(itemId, fallback) {
     const id = Number(itemId);
     try {
       if (isGuestFlow) {
-        const detail = await guestFetch('/menu/items/' + id);
+        const src = fallback && fallback.source ? '?source=' + encodeURIComponent(fallback.source) : '';
+        const detail = await guestFetch('/menu/items/' + id + src);
         return {
           image_url: getProductImageUrl(detail),
           price: Number(detail.price || 0),
         };
       }
 
-      // Public product lookup — works whether the user is authenticated or not.
+      if (!authToken) {
+        return {
+          image_url: getProductImageUrl(fallback),
+          price: getItemPrice(fallback, null),
+        };
+      }
+
       const detail = await apiFetch('/products/' + id);
       return {
         image_url: getProductImageUrl(detail),
