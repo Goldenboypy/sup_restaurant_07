@@ -35,6 +35,8 @@ from guest_api.views import (
     category_view,
     product_detail_view,
     configure_order_view,
+    payment_requested_view,
+
 )
 
 from guest_api.api import api
@@ -63,6 +65,7 @@ urlpatterns = [
     path("order-confirmed/", order_confirmed_view),
     path("api/", api.urls),
     path("api/staff/", staff_api.urls),
+    path("payment-requested/", payment_requested_view),
 ]
 
 

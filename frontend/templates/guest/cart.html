@@ -901,8 +901,7 @@
       body: JSON.stringify({ method: method, tip_amount: tip }),
     })
       .then(function () {
-        msg.textContent = 'The waiter has been notified and will come to collect payment.';
-        msg.style.color = 'var(--green-dark)';
+        window.location.href = '/payment-requested/';
       })
       .catch(function (err) {
         msg.textContent = err.message || 'Could not send payment request.';

@@ -433,6 +433,12 @@ def get_guest_bill(request):
         for it in order.items.all():
             price_val = it.menu_item.price
             photo_url = it.menu_item.photo.url if it.menu_item.photo else ""
+            if not photo_url:
+                # Mirrored Product items have no MenuItem.photo — fall back
+                # to the original Product's image_url, matched by name.
+                product = Product.objects.filter(name=it.menu_item.name).first()
+                if product:
+                    photo_url = product.image_url or ""
             subtotal = price_val * it.quantity
             total += subtotal
             bill_items.append(GuestBillItemOut(
@@ -515,3 +521,4 @@ api.add_router("/loyalty/",    loyalty_router)       # ← routers.py
 def http_error(request, exc: HttpError):
     from django.http import JsonResponse
     return JsonResponse({"detail": str(exc)}, status=exc.status_code)
+

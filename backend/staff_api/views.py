@@ -12,7 +12,7 @@ from django.utils import timezone as dj_timezone
 from core.models import KitchenTicket, PaymentRequest, RestaurantOrder, Table, TableSession
 from core.notifications import notify_kitchen, notify_guest_session, notify_waiter
 from django.contrib import messages
-
+from decimal import Decimal
 
 def resolve_active_session_for_qr(qr_param):
     """Look up an ALREADY-ACTIVE session for the table behind this QR token.
@@ -265,5 +265,38 @@ def kitchen_board(request):
 
 @login_required
 def payment_requests(request):
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "complete_payment":
+            request_id = request.POST.get("request_id")
+            pr = get_object_or_404(PaymentRequest, id=request_id)
+            pr.completed_at = dj_timezone.now()
+            pr.save(update_fields=["completed_at"])
+
+            session = pr.session
+            session.status = TableSession.Status.CLOSED
+            session.ended_at = dj_timezone.now()
+            session.save(update_fields=["status", "ended_at"])
+
+            table = session.table
+            table.status = Table.Status.OCCUPIED
+            table.save(update_fields=["status"])
+
+        return redirect("staff-payment-requests")
+
     requests_qs = PaymentRequest.objects.filter(completed_at__isnull=True).select_related("session__table")
-    return render(request, "staff/payment_requests.html", {"payment_requests": requests_qs})
+
+    requests_with_total = []
+    for pr in requests_qs:
+        orders = RestaurantOrder.objects.filter(session=pr.session).prefetch_related("items__menu_item")
+        subtotal = sum(
+            (item.menu_item.price * item.quantity for order in orders for item in order.items.all()),
+            Decimal("0"),
+        )
+        requests_with_total.append({
+            "pr": pr,
+            "subtotal": subtotal,
+            "total": subtotal + pr.tip_amount,
+        })
+
+    return render(request, "staff/payment_requests.html", {"payment_requests": requests_with_total})

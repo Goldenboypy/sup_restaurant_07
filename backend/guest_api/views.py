@@ -2,16 +2,6 @@
 guest_api/views.py
 --------------------
 HTML page views — each returns a rendered template.
-
-Connection map:
-    <- models.py        : Product, Category, Branch
-    -> config/urls.py   : all path() entries point here
-    -> frontend/templates/base.html    : extended by all pages
-    -> frontend/templates/home.html    : rendered by home()
-    -> frontend/templates/auth.html    : rendered by auth_view()
-    -> frontend/templates/cart.html    : rendered by cart_view()
-    -> frontend/templates/orders.html  : rendered by orders_view()
-    -> frontend/templates/products.html: rendered by menu_view()
 """
 
 from django.shortcuts import render, get_object_or_404, redirect
@@ -79,8 +69,6 @@ def category_view(request: HttpRequest, category_slug: str):
 
 def product_detail_view(request: HttpRequest, product_id: int):
     product = get_object_or_404(Product, id=product_id, is_available=True)
-    # Prepare server-rendered product payload so legacy templates can show
-    # the product immediately without relying on the guest API mapping.
     try:
         price_val = float(product.price)
     except Exception:
@@ -106,12 +94,6 @@ def product_detail_view(request: HttpRequest, product_id: int):
         "category_name": product.category.name,
     }
 
-    # If the QR token is present in the query string (?qr=<token>), only
-    # attach a session if the table's ordering window is currently open
-    # (an ACTIVE TableSession already exists). Never auto-create one here —
-    # only staff can open ordering for a table (see table_detail's
-    # 'open_ordering' action). This stops a photographed/reused QR code
-    # from working outside a waiter-opened window.
     qr = request.GET.get("qr")
     if qr:
         table, session = resolve_active_session_for_qr(qr)
@@ -171,3 +153,7 @@ def orders_view(request: HttpRequest):
 
 def order_confirmed_view(request: HttpRequest):
     return render(request, "guest/order_confirmed.html", {"page": "order_confirmed"})
+
+
+def payment_requested_view(request: HttpRequest):
+    return render(request, "guest/payment_requested.html", {"page": "payment_requested"})

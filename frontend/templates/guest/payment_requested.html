@@ -1,0 +1,25 @@
+{% extends "guest/base.html" %}
+{% load static %}
+
+{% block title %}Payment requested — Restaurant{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{% static 'guest/css/order_confirmed.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="confirm-page">
+  <div class="confirm-card">
+    <div class="confirm-icon" aria-hidden="true">💳</div>
+    <h1 class="confirm-title">On the way!</h1>
+    <p class="confirm-body">Your waiter has been notified and is coming to collect payment. Thanks for dining with us!</p>
+    <a class="btn btn--primary confirm-home-btn" href="/">Back to Home</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  try { localStorage.removeItem('guest_session_token'); } catch (_) {}
+</script>
+{% endblock %}

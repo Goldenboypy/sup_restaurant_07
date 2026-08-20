@@ -7,19 +7,20 @@
 
 {% if payment_requests %}
 <div style="display:flex; flex-direction:column; gap:.9rem;">
-  {% for pr in payment_requests %}
+  {% for req in payment_requests %}
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.75rem;">
     <div>
-      <p style="margin:0 0 .3rem; font-weight:700;">Table {{ pr.session.table.number }}</p>
+      <p style="margin:0 0 .3rem; font-weight:700;">Table {{ req.pr.session.table.number }}</p>
       <p class="muted" style="margin:0;">
-        Method: {{ pr.get_method_display|default:pr.method }} · Requested {{ pr.requested_at }}
-        {% if pr.tip_amount %} · Tip: {{ pr.tip_amount }} UZS{% endif %}
+        Method: {{ req.pr.get_method_display|default:req.pr.method }} · Requested {{ req.pr.requested_at }}
+        {% if req.pr.tip_amount %} · Tip: {{ req.pr.tip_amount }} UZS{% endif %}
       </p>
+      <p style="margin:.4rem 0 0; font-weight:800; font-size:1.05rem;">Total: {{ req.total }} UZS</p>
     </div>
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="complete_payment">
-      <input type="hidden" name="request_id" value="{{ pr.id }}">
+      <input type="hidden" name="request_id" value="{{ req.pr.id }}">
       <button type="submit" class="btn btn-success">Mark paid &amp; clear table</button>
     </form>
   </div>
