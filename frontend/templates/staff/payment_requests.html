@@ -13,6 +13,7 @@
       <p style="margin:0 0 .3rem; font-weight:700;">Table {{ pr.session.table.number }}</p>
       <p class="muted" style="margin:0;">
         Method: {{ pr.get_method_display|default:pr.method }} · Requested {{ pr.requested_at }}
+        {% if pr.tip_amount %} · Tip: {{ pr.tip_amount }} UZS{% endif %}
       </p>
     </div>
     <form method="post">

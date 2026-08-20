@@ -45,7 +45,14 @@
 }
 
 .confirm-home-btn {
-  min-height: 52px;
-  padding: 0.95rem 2rem;
-  font-size: 1rem;
+  min-height: 56px;
+  padding: 1rem 2.25rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.confirm-home-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
 }

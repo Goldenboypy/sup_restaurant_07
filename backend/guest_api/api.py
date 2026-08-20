@@ -55,8 +55,8 @@ from decimal import Decimal   # fehlt aktuell komplett -> get_guest_bill würde 
 from core.models import (
     MenuCategory, MenuItem, Table, TableSession, Product,
     RestaurantOrder, RestaurantOrderItem,          # NEU
+    PaymentRequest
 )
-
 
 
 # ---------------------------------------------------------------------------
@@ -455,33 +455,43 @@ def get_guest_bill(request):
 
 @guest_session_router.post("/payment")
 def request_guest_payment(request, data: GuestPaymentIn):
-    """Record the guest's Card/Cash request for the active table session."""
+    """Record the guest's Card/Cash request (+ optional tip) for the
+    active table session, so staff (payment_requests view) sees it."""
     if data.method not in {"card", "cash"}:
         raise HttpError(400, "Payment method must be 'card' or 'cash'")
     token = request.headers.get("X-Table-Session")
     _guest_cart_key(request)
-    payment_key = f"guest_payment:{token}"
-    if request.session.get(payment_key, {}).get("status") == "requested":
-        raise HttpError(409, "Payment has already been requested for this session")
 
     session = get_object_or_404(
         TableSession,
         session_token=token,
         status=TableSession.Status.ACTIVE,
     )
-    request.session[payment_key] = {
-        "method": data.method,
-        "status": "requested",
-    }
-    request.session.modified = True
+
+    existing = PaymentRequest.objects.filter(session=session, completed_at__isnull=True).first()
+    if existing:
+        raise HttpError(409, "Payment has already been requested for this session")
+
+    PaymentRequest.objects.create(
+        session=session,
+        method=data.method,
+        tip_amount=data.tip_amount,
+    )
+
+    session.table.status = Table.Status.BILL_REQUESTED
+    session.table.save(update_fields=["status"])
 
     waiter = session.table.assigned_waiter
     if waiter is not None:
-        notify_waiter(waiter.id, "payment.requested", {
-            "session_token": str(session.session_token),
-            "table_number": session.table.number,
-            "method": data.method,
-        })
+        try:
+            notify_waiter(waiter.id, "payment.requested", {
+                "session_token": str(session.session_token),
+                "table_number": session.table.number,
+                "method": data.method,
+                "tip_amount": str(data.tip_amount),
+            })
+        except Exception:
+            pass
 
     return {"status": "requested"}
 

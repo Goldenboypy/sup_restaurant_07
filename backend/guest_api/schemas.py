@@ -128,7 +128,7 @@ class GuestBillOut(Schema):
 
 class GuestPaymentIn(Schema):
     method: str
-
+    tip_amount: Decimal = Decimal("0")
 
 # ===========================================================================
 # CATEGORY

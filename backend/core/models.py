@@ -463,6 +463,7 @@ class PaymentRequest(models.Model):
     # OneToOne → TableSession
     session        = models.OneToOneField(TableSession, on_delete=models.CASCADE, related_name="payment_request")
     method          = models.CharField(max_length=4, choices=Method.choices)
+    tip_amount      = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     requested_at     = models.DateTimeField(auto_now_add=True)
     completed_at      = models.DateTimeField(null=True, blank=True)
 

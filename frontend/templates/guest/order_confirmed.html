@@ -42,9 +42,23 @@
       const data = JSON.parse(event.data);
       if (data.type === 'order.status_changed' && data.status === 'rejected') {
         showRejectionNotice();
+      } else if (data.type === 'order.status_changed' && data.status === 'ready') {
+        showPayButton();
       }
     } catch (_) {}
   };
+
+  function showPayButton() {
+    const card = document.querySelector('.confirm-card');
+    if (!card || document.getElementById('pay-now-btn')) return;
+    const payBtn = document.createElement('a');
+    payBtn.id = 'pay-now-btn';
+    payBtn.className = 'btn btn--primary confirm-home-btn';
+    payBtn.style.marginTop = '0.75rem';
+    payBtn.href = '/cart/';
+    payBtn.textContent = 'Pay now';
+    card.appendChild(payBtn);
+  }
 
   function showRejectionNotice() {
     const container = document.querySelector('.confirm-card');

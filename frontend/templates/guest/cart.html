@@ -616,6 +616,45 @@
   </div>
 </nav>
 
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- GUEST BILL (dine-in flow) — shown instead of the legacy cart when a    -->
+<!-- guest table session is active. Legacy shop cart below is untouched.   -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="guest-bill-page" class="hidden" style="max-width:700px;margin:2rem auto;padding:0 1.25rem;">
+  <h1 style="margin:0 0 .3rem; color:var(--green-dark); font-size:1.6rem; font-weight:800;">Your Bill</h1>
+  <p style="color:var(--gray-600); margin-bottom:1.5rem;">Review everything ordered at this table before paying.</p>
+
+  <div id="guest-bill-items" style="display:flex; flex-direction:column; gap:.75rem;"></div>
+
+  <div style="border-top:1px solid var(--gray-200); margin-top:1.25rem; padding-top:1rem;">
+    <div style="display:flex; justify-content:space-between; font-size:.95rem; color:var(--gray-600); margin-bottom:.5rem;">
+      <span>Subtotal</span>
+      <span id="guest-bill-subtotal">—</span>
+    </div>
+
+    <div style="margin:1rem 0;">
+      <label for="tip-input" style="display:block; font-weight:600; font-size:.85rem; margin-bottom:.4rem; color:var(--gray-600); text-transform:uppercase; letter-spacing:.4px;">Add a tip (optional)</label>
+      <input type="number" id="tip-input" min="0" step="1000" placeholder="0"
+             style="width:100%; padding:.7rem .9rem; border:1px solid var(--gray-200); border-radius:8px; font-size:1rem;">
+    </div>
+
+    <div style="display:flex; justify-content:space-between; font-size:1.15rem; font-weight:800; color:var(--gray-900); border-top:1px solid var(--gray-200); padding-top:.75rem;">
+      <span>Total</span>
+      <span id="guest-bill-total">—</span>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:.75rem; margin-top:1.5rem;">
+    <button id="pay-card-btn" class="checkout-btn" style="flex:1;">💳 Pay with Card</button>
+    <button id="pay-cash-btn" class="checkout-btn" style="flex:1; background:var(--gray-600);">💵 Pay with Cash</button>
+  </div>
+
+  <p id="guest-bill-message" style="margin-top:1rem; font-weight:600; text-align:center;"></p>
+</div>
+
+
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- PAGE HEADER                                                              -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -759,6 +798,127 @@
       });
     });
   });
+</script>
+
+<script>
+(function () {
+  "use strict";
+
+  function getGuestToken() {
+    try {
+      return localStorage.getItem('guest_session_token');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  const guestToken = getGuestToken();
+  if (!guestToken) return; // No guest session — leave the legacy shop cart exactly as-is.
+
+  // Hide the legacy shop cart entirely; show the guest bill instead.
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelector(".page-header").classList.add("hidden");
+    document.querySelector("main.cart-layout").classList.add("hidden");
+    document.getElementById("guest-bill-page").classList.remove("hidden");
+  });
+
+  function guestFetch(path, options) {
+    options = options || {};
+    const headers = Object.assign({ 'Content-Type': 'application/json', 'X-Table-Session': guestToken }, options.headers || {});
+    const fetchOptions = Object.assign({}, options, { headers });
+    if (fetchOptions.method == null) fetchOptions.method = 'GET';
+    if (fetchOptions.method === 'GET') delete fetchOptions.body;
+    return fetch('/api/guest' + path, fetchOptions).then(function (res) {
+      if (!res.ok) {
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          throw new Error(body.detail || ('Request failed (' + res.status + ')'));
+        });
+      }
+      return res.status === 204 ? null : res.json();
+    });
+  }
+
+  function money(value) {
+    return Number(value || 0).toLocaleString('en-US') + ' UZS';
+  }
+
+  let billTotal = 0;
+
+  function renderBill(bill) {
+    billTotal = Number(bill.total || 0);
+    const container = document.getElementById('guest-bill-items');
+    container.innerHTML = '';
+
+    bill.orders.forEach(function (order) {
+      order.items.forEach(function (item) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; gap:.85rem; padding:.75rem; background:var(--white); border:1px solid var(--gray-200); border-radius:10px;';
+        const imgHtml = item.photo_url
+          ? '<img src="' + item.photo_url + '" alt="' + item.name + '" style="width:56px;height:56px;object-fit:cover;border-radius:8px;">'
+          : '<div style="width:56px;height:56px;border-radius:8px;background:var(--green-light);"></div>';
+        row.innerHTML =
+          imgHtml +
+          '<div style="flex:1;">' +
+            '<div style="font-weight:700;">' + item.name + '</div>' +
+            '<div style="font-size:.8rem;color:var(--gray-600);">Qty ' + item.quantity + '</div>' +
+          '</div>' +
+          '<div style="font-weight:700;">' + money(item.subtotal) + '</div>';
+        container.appendChild(row);
+      });
+    });
+
+    document.getElementById('guest-bill-subtotal').textContent = money(billTotal);
+    updateTotal();
+  }
+
+  function updateTotal() {
+    const tipInput = document.getElementById('tip-input');
+    const tip = Math.max(0, Number(tipInput.value) || 0);
+    document.getElementById('guest-bill-total').textContent = money(billTotal + tip);
+  }
+
+  function loadBill() {
+    guestFetch('/bill')
+      .then(renderBill)
+      .catch(function (err) {
+        document.getElementById('guest-bill-message').textContent = err.message || 'Could not load your bill.';
+      });
+  }
+
+  function requestPayment(method) {
+    const tipInput = document.getElementById('tip-input');
+    const tip = Math.max(0, Number(tipInput.value) || 0);
+    const cardBtn = document.getElementById('pay-card-btn');
+    const cashBtn = document.getElementById('pay-cash-btn');
+    const msg = document.getElementById('guest-bill-message');
+
+    cardBtn.disabled = true;
+    cashBtn.disabled = true;
+    msg.textContent = 'Sending request…';
+
+    guestFetch('/payment', {
+      method: 'POST',
+      body: JSON.stringify({ method: method, tip_amount: tip }),
+    })
+      .then(function () {
+        msg.textContent = 'The waiter has been notified and will come to collect payment.';
+        msg.style.color = 'var(--green-dark)';
+      })
+      .catch(function (err) {
+        msg.textContent = err.message || 'Could not send payment request.';
+        msg.style.color = 'var(--red)';
+        cardBtn.disabled = false;
+        cashBtn.disabled = false;
+      });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    loadBill();
+    document.getElementById('tip-input').addEventListener('input', updateTotal);
+    document.getElementById('pay-card-btn').addEventListener('click', function () { requestPayment('card'); });
+    document.getElementById('pay-cash-btn').addEventListener('click', function () { requestPayment('cash'); });
+  });
+})();
 </script>
 
 <script src="/static/js/main.js"></script>
