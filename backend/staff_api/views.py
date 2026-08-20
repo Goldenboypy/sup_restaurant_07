@@ -11,7 +11,7 @@ from django.utils import timezone as dj_timezone
 
 from core.models import KitchenTicket, PaymentRequest, RestaurantOrder, Table, TableSession
 from core.notifications import notify_kitchen, notify_guest_session, notify_waiter
-
+from django.contrib import messages
 
 
 def resolve_active_session_for_qr(qr_param):
@@ -135,6 +135,14 @@ def table_detail(request, table_id: int):
             order.served_by = waiter
             order.save(update_fields=["status", "served_at", "served_by"])
 
+        elif action == "mark_served":
+            order_id = request.POST.get("order_id")
+            order = get_object_or_404(RestaurantOrder, id=order_id)
+            order.status = RestaurantOrder.Status.SERVED
+            order.served_at = dj_timezone.now()
+            order.served_by = waiter
+            order.save(update_fields=["status", "served_at", "served_by"])
+
             notify_guest_session(str(order.session.session_token), "order.status_changed", {
                 "order_id": order.id,
                 "status": order.status,
@@ -180,10 +188,10 @@ def table_detail(request, table_id: int):
     })
 
 
+
 @login_required
 def kitchen_board(request):
     cook = getattr(request.user, "waiter_profile", None)
-    is_admin = request.user.is_superuser
 
     if request.method == "POST":
         action = request.POST.get("action")
@@ -191,11 +199,12 @@ def kitchen_board(request):
         ticket = get_object_or_404(KitchenTicket, id=ticket_id)
 
         if action == "assign_self" and cook is not None:
-            if ticket.assigned_cook is None or is_admin:
+            if ticket.assigned_cook is None or request.user.is_superuser:
                 ticket.assigned_cook = cook
                 ticket.save(update_fields=["assigned_cook"])
 
         elif action == "unassign_self":
+            is_admin = request.user.is_superuser
             if ticket.assigned_cook is not None and (ticket.assigned_cook == cook or is_admin):
                 ticket.assigned_cook = None
                 ticket.save(update_fields=["assigned_cook"])
@@ -212,16 +221,24 @@ def kitchen_board(request):
 
                     waiter = ticket.order.confirmed_by
                     if waiter is not None:
-                        notify_waiter(waiter.id, "ticket.ready", {
-                            "ticket_id": ticket.id,
-                            "order_id": ticket.order_id,
-                            "table_number": ticket.order.session.table.number,
-                        })
+                        try:
+                            notify_waiter(waiter.id, "ticket.ready", {
+                                "ticket_id": ticket.id,
+                                "order_id": ticket.order_id,
+                                "table_number": ticket.order.session.table.number,
+                            })
+                        except Exception:
+                            pass
 
-                    notify_guest_session(str(ticket.order.session.session_token), "order.status_changed", {
-                        "order_id": ticket.order_id,
-                        "status": ticket.order.status,
-                    })
+                    try:
+                        notify_guest_session(str(ticket.order.session.session_token), "order.status_changed", {
+                            "order_id": ticket.order_id,
+                            "status": ticket.order.status,
+                        })
+                    except Exception:
+                        pass
+
+                    messages.success(request, f"Ticket #{ticket.id} marked ready and the waiter was notified.")
                 else:
                     ticket.order.status = RestaurantOrder.Status.KITCHEN_IN_PROGRESS
                     ticket.order.save(update_fields=["status"])
@@ -230,16 +247,18 @@ def kitchen_board(request):
 
         return redirect("staff-kitchen")
 
-    tickets = (
+    base_qs = (
         KitchenTicket.objects
         .select_related("order__session__table", "order__confirmed_by", "assigned_cook")
         .prefetch_related("order__items__menu_item")
         .order_by("created_at")
     )
+
     return render(request, "staff/kitchen.html", {
-        "tickets_new": tickets.filter(status=KitchenTicket.Status.NEW),
-        "tickets_in_progress": tickets.filter(status=KitchenTicket.Status.IN_PROGRESS),
-        "tickets_ready": tickets.filter(status=KitchenTicket.Status.READY),
+        "tickets_new":          base_qs.filter(status=KitchenTicket.Status.NEW),
+        "tickets_in_progress":  base_qs.filter(status=KitchenTicket.Status.IN_PROGRESS),
+        "tickets_ready":        base_qs.filter(status=KitchenTicket.Status.READY)
+                                       .exclude(order__status=RestaurantOrder.Status.SERVED),
         "cook": cook,
     })
 
